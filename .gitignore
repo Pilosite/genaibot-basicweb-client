@@ -110,9 +110,6 @@ coverage/
 *.js  
 *.js.map  
   
-# Compiled CSS files  
-*.css  
-*.css.map  
   
 # TypeScript declaration files  
 *.d.ts  
