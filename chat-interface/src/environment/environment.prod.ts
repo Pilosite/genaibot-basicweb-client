@@ -2,6 +2,8 @@
   
 export const environment = {  
     production: true,  
-    apiUrl: 'https://your-production-api-url.com', // Set your production API URL  
+    apiUrl: 'http://your-production-api-url',  
+    clientId: 'BotTester',  
+    genaibotId: 'Remote Bot',  
   };  
   

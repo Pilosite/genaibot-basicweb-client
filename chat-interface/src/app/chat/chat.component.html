@@ -1,22 +1,50 @@
 <mat-toolbar color="primary">  
   <span>Chat Interface</span>  
+  <!-- Toggle button for internal messages -->  
+  <span class="spacer"></span>  
+  <button mat-button (click)="toggleInternalMessages()">  
+    <mat-icon>{{ showInternalMessages ? 'visibility_off' : 'visibility' }}</mat-icon>  
+    {{ showInternalMessages ? 'Hide' : 'Show' }} Internal Messages  
+  </button>  
+  <button mat-button (click)="resetConversation()">Reset Conversation</button>  
 </mat-toolbar>  
   
 <div class="chat-container mat-typography">  
   <div class="message-list">  
-    <div *ngFor="let message of messages" class="message" [ngClass]="message.role">  
+    <div  
+      *ngFor="let message of messages"  
+      [ngClass]="[  
+        'message',  
+        message.role,  
+        message.is_internal ? 'internal' : ''  
+      ]"  
+      [class.hidden]="!showInternalMessages && message.is_internal"  
+    >  
+      <!-- Sender's Name and Timestamp -->  
+      <div class="message-info">  
+        <span class="sender-name">{{ message.username }}</span>  
+        <span class="timestamp">{{ message.timestamp }}</span>  
+      </div>  
       <div class="message-content mat-elevation-z1">  
         <markdown [data]="message.content"></markdown>  
-      </div>  
-      <div class="reactions" *ngIf="message.reactions.length">  
-        <span *ngFor="let reaction of message.reactions">{{ reaction }}</span>  
+        <!-- Display reactions under user messages -->  
+        <div class="reactions" *ngIf="message.reactions.length">  
+          <span *ngFor="let reaction of message.reactions">  
+            {{ reaction }}  
+          </span>  
+        </div>  
       </div>  
     </div>  
   </div>  
-  <mat-divider></mat-divider>  
   <div class="input-area">  
     <mat-form-field class="message-input" appearance="outline">  
-      <textarea matInput [(ngModel)]="userInput" placeholder="Type your message..." rows="3"></textarea>  
+      <textarea  
+        matInput  
+        [(ngModel)]="userInput"  
+        placeholder="Type your message..."  
+        rows="3"  
+        (keydown.enter)="sendMessage(); $event.preventDefault()"  
+      ></textarea>  
     </mat-form-field>  
     <button mat-raised-button color="primary" (click)="sendMessage()">Send</button>  
   </div>  
