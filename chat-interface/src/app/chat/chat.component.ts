@@ -12,6 +12,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';    
 import { MatFormFieldModule } from '@angular/material/form-field';    
 import { MatInputModule } from '@angular/material/input';    
+import Prism from 'prismjs';
+import { EmojiService } from '../services/emoji.service';
 
 // Définition de l'interface WSMessage    
 interface WSMessage {
@@ -55,6 +57,7 @@ interface Message {
     MatInputModule,    
   ],    
 })
+
 export class ChatComponent implements OnInit {    
   messages: Message[] = [];    
   userInput: string = '';    
@@ -67,7 +70,17 @@ export class ChatComponent implements OnInit {
   isProcessingQueue: boolean = false;  
   lastUserMessageTimestamp: string = '';
 
-  constructor(private http: HttpClient, private ngZone: NgZone) {}    
+  constructor(
+    private http: HttpClient,
+    private ngZone: NgZone,
+    private emojiService: EmojiService // Ajoutez le service ici
+  ) {}
+  
+  
+  ngAfterViewChecked() {
+    // Appliquer Prism.js après chaque mise à jour de la vue
+    Prism.highlightAll();
+  }
 
   ngOnInit(): void {    
     // Générer un threadId au démarrage  
@@ -108,14 +121,14 @@ export class ChatComponent implements OnInit {
     }  
   }  
 
-  processMessage(wsMessage: WSMessage): void {  
-    console.log('Processing WebSocket message:', wsMessage);  
+  processMessage(wsMessage: WSMessage): void {
+    console.log('Processing WebSocket message:', wsMessage);
   
-    if (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove') {  
-      console.log(`Processing reaction update:`, wsMessage);  
+    if (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove') {
+      console.log(`Processing reaction update:`, wsMessage);
   
       const reactionName = wsMessage.reaction_name || '';  // Utiliser la réaction envoyée dans wsMessage
-    
+  
       // Recherche du message avec timestamp, thread_id et rôle 'user'
       const message = this.messages.find(msg => {
         const msgTimestamp = String(msg.timestamp).trim();
@@ -129,57 +142,59 @@ export class ChatComponent implements OnInit {
                         msgThreadId === wsThreadId &&
                         msgRole === 'user';
         return isMatch;
-      });  
+      });
   
-      if (message && reactionName) {  
-        const emoji = this.getEmojiByName(reactionName) || reactionName;  
-        console.log('Reaction name:', reactionName);  
+      if (message && reactionName) {
+        const emoji = this.getEmojiByName(reactionName) || reactionName;
+        console.log('Reaction name:', reactionName);
   
-        if (wsMessage.update === 'reaction_add') {  
+        if (wsMessage.update === 'reaction_add') {
           if (!message.reactions.includes(emoji)) {  // Vérifier si la réaction n'est pas déjà présente
-            message.reactions.push(emoji);  
-            console.log('Added reaction:', emoji);  
+            message.reactions.push(emoji);
+            console.log('Added reaction:', emoji);
           } else {
             console.log('Reaction already present, skipping add:', emoji);  // Log si la réaction est déjà présente
           }
-        } else if (wsMessage.update === 'reaction_remove') {  
-          const index = message.reactions.indexOf(emoji);  
+        } else if (wsMessage.update === 'reaction_remove') {
+          const index = message.reactions.indexOf(emoji);
           if (index !== -1) {  // Vérifier si la réaction est présente avant de la supprimer
-            message.reactions.splice(index, 1);  
-            console.log('Removed reaction:', emoji);  
+            message.reactions.splice(index, 1);
+            console.log('Removed reaction:', emoji);
           } else {
             console.warn('Reaction not found for removal:', emoji);  // Log si la réaction n'existe pas
           }
-        }  
-      } else {  
+        }
+      } else {
         console.warn('Message not found for reaction update.');
         console.log('Reaction name:', reactionName);  // Log pour vérifier la réaction
         console.log('Target timestamp:', wsMessage.timestamp);
         console.log('Target thread_id:', wsMessage.thread_id);
         this.pendingReactions.push(wsMessage);  // Ajouter aux réactions en attente si le message n'est pas trouvé
-      }  
-    } else {  
+      }
+    } else {
       // Ajouter un nouveau message s'il ne s'agit pas d'une mise à jour de réaction
-      const message: Message = {  
-        timestamp: String(wsMessage.timestamp!).trim(),  
-        thread_id: String(wsMessage.thread_id!).trim(),  
-        role: String(wsMessage.role || 'assistant').trim().toLowerCase(),  
-        content: this.parseEmojis(this.processMentions(wsMessage.content || wsMessage.text || '')),  
-        is_internal: wsMessage.is_internal || false,  
-        reactions: [],  
-        username: wsMessage.user_name || this.clientId,  
-      };  
-      this.messages.push(message);  
-      console.log('Added message:', message);  
+      const message: Message = {
+        timestamp: String(wsMessage.timestamp!).trim(),
+        thread_id: String(wsMessage.thread_id!).trim(),
+        role: String(wsMessage.role || 'assistant').trim().toLowerCase(),
+        // Utiliser l'EmojiService pour convertir les codes d'emoji en emoji réels
+        content: this.emojiService.convert(this.parseEmojis(this.processMentions(wsMessage.content || wsMessage.text || ''))),
+        is_internal: wsMessage.is_internal || false,
+        reactions: [],
+        username: wsMessage.user_name || this.clientId,
+      };
+      this.messages.push(message);
+      console.log('Added message:', message);
   
-      // Si le message est de l'utilisateur, mettre à jour l'indice du dernier message utilisateur  
-      if (message.role === 'user' && !message.is_internal) {  
-        this.lastUserMessageTimestamp = message.timestamp;  
+      // Si le message est de l'utilisateur, mettre à jour l'indice du dernier message utilisateur
+      if (message.role === 'user' && !message.is_internal) {
+        this.lastUserMessageTimestamp = message.timestamp;
         this.processPendingReactions(message);  // Traiter les réactions en attente si nécessaire
       }
-    }  
-  }
   
+      this.scrollToBottom();  // Scroll automatique vers le bas
+    }
+  }  
 
   processPendingReactions(message: Message): void {  
     this.pendingReactions.forEach((wsMessage) => {  
@@ -206,12 +221,24 @@ export class ChatComponent implements OnInit {
     this.pendingReactions = [];  
   }  
 
-  processMentions(text: string): string {    
-    return text.replace(/(@\w+)/g, (match) => {    
-      return `<span class="mention">${match}</span>`;    
-    });    
-  }    
+  processMentions(text: string): string {
+    // Utilise une expression régulière pour trouver les mentions commençant par @
+    return text.replace(/(@\w+)/g, (match) => {
+      return `<span class="mention">${match}</span>`;
+    });
+  }
 
+  scrollToBottom(): void {
+    try {
+      const messageList = document.querySelector('.message-list');
+      if (messageList) {
+        messageList.scrollTop = messageList.scrollHeight;
+      }
+    } catch (err) {
+      console.error('Error scrolling to bottom:', err);
+    }
+  }
+  
   sendMessage(): void {  
     if (this.userInput.trim() === '') return;  
   
@@ -257,7 +284,7 @@ export class ChatComponent implements OnInit {
     this.userInput = '';  
   }
   
-
+  
   resetConversation(): void {  
     this.messages = [];  
     this.threadId = this.generateThreadId();  
