@@ -2,7 +2,7 @@
 basic web client for younited genaibot framework
 
 Create a .env with the following information, only change the LLM_NOTIFICATION_ENDPOINT to your younited genaibot framework actual endpoint.
-
+```yaml
 CLIENT_ID="BotTester"
 GENAIBOT_ID = "Remote Bot"
 LLM_NOTIFICATION_ENDPOINT="http://localhost:7071/api/get_generic_rest_notification"  
@@ -13,6 +13,7 @@ DEBUG_MODE=False
 BACKEND_HOST=0.0.0.0  
 BACKEND_PORT=8000  
 ALLOWED_ORIGINS=http://localhost:4200  
+```
 
 ### Configuration of Younited Genaibot Framework
 
