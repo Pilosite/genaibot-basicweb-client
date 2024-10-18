@@ -1,7 +1,7 @@
 <mat-toolbar color="primary">
   <span>Younited GenaiBot Web Chat Interface Sample</span>
-  <!-- Toggle button for internal messages -->
   <span class="spacer"></span>
+  <!-- Toggle button for internal messages -->
   <button mat-button (click)="toggleInternalMessages()" [ngClass]="{'active': showInternalMessages}">
     <mat-icon>{{ showInternalMessages ? 'visibility_off' : 'visibility' }}</mat-icon>
     {{ showInternalMessages ? 'Hide' : 'Show' }} Internal Messages
@@ -20,33 +20,93 @@
       ]"
       [class.hidden]="!showInternalMessages && message.is_internal"
     >
-      <!-- Sender's Name and Timestamp -->
-      <div class="message-info">
-        <span class="sender-name">{{ message.username }}</span>
-        <span class="timestamp">{{ message.timestamp }}</span>
-      </div>
-      <div class="message-content mat-elevation-z1">
-        <!-- Utilisation de Prism.js pour coloriser les blocs de code -->
-        <markdown [data]="message.content" prism></markdown>
-        <!-- Display reactions under user messages -->
+      <!-- Layout rules: Right bubble for user, Left bubble for assistant internal, full width for others -->
+      <div class="message-info" [ngClass]="{
+            'user-message': message.role === 'user' && !message.is_internal,
+            'assistant-internal': message.role === 'assistant' && message.is_internal,
+            'full-width-message': message.role === 'assistant' && !message.is_internal
+          }">
+        
+        <!-- Place reactions next to the username -->
         <div class="reactions" *ngIf="message.reactions.length">
-          <span *ngFor="let reaction of message.reactions">
-            {{ reaction }}
-          </span>
+          <span *ngFor="let reaction of message.reactions">{{ reaction }}</span>
+        </div>
+
+        <span class="sender-name">{{ message.username }}</span>
+        <span class="timestamp">{{ formatTimestamp(message.timestamp) }}</span>
+      </div>
+
+      <div class="message-content mat-elevation-z1" [ngClass]="{
+          'bubble-right': message.role === 'user' && !message.is_internal,
+          'bubble-left': message.role === 'assistant' && message.is_internal,
+          'full-width': message.role === 'assistant' && !message.is_internal
+        }">
+        <!-- Render message content if exists -->
+        <markdown *ngIf="message.content" [data]="message.content"></markdown>
+
+        <!-- Handle file uploads -->
+        <div *ngIf="message.file">
+          <!-- If the file is an image, display it -->
+          <img *ngIf="isImageFile(message.file.filename)" [src]="fileToUrl(message.file)" alt="{{ message.file.title }}" style="max-width: 200px;" />
+
+          <!-- Otherwise, show the file name with a preview and download link -->
+          <div *ngIf="!isImageFile(message.file.filename)">
+            <strong>File: {{ message.file.title }}</strong>
+
+            <!-- Show a preview of the content with sanitization -->
+            <pre class="file-preview" *ngIf="!message.file.isExpanded">{{ sanitizeFileContent(getFilePreview(message.file.content)) }}</pre>
+
+            <!-- Expand/collapse button -->
+            <button mat-raised-button color="accent" *ngIf="shouldShowExpandButton(message.file.content)" (click)="toggleFileExpand(message.file)">
+              {{ message.file.isExpanded ? 'Collapse' : 'Expand' }}
+            </button>
+
+            <!-- Full content with sanitization and custom styling if expanded -->
+            <pre class="file-full-content dark-theme" *ngIf="message.file.isExpanded">
+              {{ sanitizeFileContent(message.file.content) }}
+            </pre>
+
+            <!-- Download link -->
+            <a mat-button color="primary" [href]="fileToUrl(message.file)" download="{{ message.file.filename }}">Download</a>
+          </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Input area -->
   <div class="input-area">
     <mat-form-field class="message-input" appearance="outline">
       <textarea
         matInput
+        id="messageInput"
         [(ngModel)]="userInput"
         placeholder="Type your message..."
         rows="3"
         (keydown.enter)="sendMessage(); $event.preventDefault()"
+        [disabled]="isWaitingForResponse && !userStoppedWaiting"
       ></textarea>
     </mat-form-field>
-    <button mat-raised-button color="primary" (click)="sendMessage()">Send</button>
+  
+    <button
+      mat-raised-button
+      id="sendButton"
+      color="primary"
+      *ngIf="!isWaitingForResponse || userStoppedWaiting"
+      (click)="sendMessage()"
+      [disabled]="userInput.trim() === ''"
+    >
+      Send
+    </button>
+  
+    <!-- Show a "Stop" button when waiting for a response -->
+    <button
+      mat-raised-button
+      color="warn"
+      *ngIf="isWaitingForResponse && !userStoppedWaiting"
+      (click)="stopWaiting()"
+    >
+      Stop
+    </button>
   </div>
 </div>
