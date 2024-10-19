@@ -16,7 +16,8 @@
       [ngClass]="[
         'message',
         message.role,
-        message.is_internal ? 'internal' : ''
+        message.is_internal ? 'internal' : '',
+        message.file ? 'file-upload' : ''
       ]"
       [class.hidden]="!showInternalMessages && message.is_internal"
     >
@@ -45,7 +46,7 @@
         <markdown *ngIf="message.content" [data]="message.content"></markdown>
 
         <!-- Handle file uploads -->
-        <div *ngIf="message.file">
+        <div *ngIf="message.file" class="file-content">
           <!-- If the file is an image, display it -->
           <img *ngIf="isImageFile(message.file.filename)" [src]="fileToUrl(message.file)" alt="{{ message.file.title }}" style="max-width: 200px;" />
 
