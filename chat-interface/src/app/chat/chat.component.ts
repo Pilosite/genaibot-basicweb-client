@@ -1,4 +1,4 @@
-import { Component, OnInit, NgZone, ChangeDetectorRef } from '@angular/core';    
+import { Component, OnInit, NgZone, ChangeDetectorRef, HostListener  } from '@angular/core';    
 import { FormsModule } from '@angular/forms';    
 import { CommonModule } from '@angular/common';    
 import { MarkdownModule } from 'ngx-markdown';    
@@ -99,7 +99,13 @@ export class ChatComponent implements OnInit {
   loadingPrompt: boolean = false;
 
   showDesignerPanel: boolean = false; // State to show/hide the designer panel
-
+  designerWidth: number = window.innerWidth / 2; 
+  designerMinWidth: number = 200; // Largeur minimale du panneau du concepteur  
+  
+  chatMinWidth: number = 300; // Largeur minimale du chat  
+  splitterWidth: number = 5; // Largeur du splitter    
+  designerMaxWidth: number = window.innerWidth - this.chatMinWidth - this.splitterWidth;  
+  isSplitterDragging: boolean = false; // Indique si l'utilisateur est en train de faire glisser le splitter  
   // Subprompts management
   availableSubprompts: string[] = [];
   selectedSubprompt: string = '';
@@ -150,13 +156,31 @@ export class ChatComponent implements OnInit {
     }
   }
 
-  ngOnDestroy(): void {
-    this.messages.forEach((message) => {
-      if (message.file?.blobUrl) {
-        URL.revokeObjectURL(message.file.blobUrl);
-      }
-    });
+  ngOnDestroy(): void {  
+    // Votre code existant...  
+    
+    // Libérer les écouteurs d'événements si nécessaire  
+    if (this.isSplitterDragging) {  
+      document.removeEventListener('mousemove', this.onSplitterMouseMove.bind(this));  
+      document.removeEventListener('mouseup', this.onSplitterMouseUp.bind(this));  
+    }  
+    
+    // Libérer les URL de blob des fichiers  
+    this.messages.forEach((message) => {  
+      if (message.file?.blobUrl) {  
+        URL.revokeObjectURL(message.file.blobUrl);  
+      }  
+    });  
   }
+
+  @HostListener('window:resize', ['$event'])  
+  onWindowResize(event: Event) {  
+    if (this.showDesignerPanel) {  
+      this.designerWidth = window.innerWidth / 2;  
+    }  
+    // Mettre à jour designerMaxWidth en fonction de la nouvelle largeur de la fenêtre  
+    this.designerMaxWidth = window.innerWidth - this.chatMinWidth - this.splitterWidth;  
+  }  
 
   // Toggle the designer panel
   toggleDesignerPanel(): void {
@@ -182,6 +206,31 @@ export class ChatComponent implements OnInit {
     }
   }
 
+  onSplitterMouseDown(event: MouseEvent): void {  
+    this.isSplitterDragging = true;  
+    document.addEventListener('mousemove', this.onSplitterMouseMove.bind(this));  
+    document.addEventListener('mouseup', this.onSplitterMouseUp.bind(this));  
+  }  
+  
+  onSplitterMouseMove(event: MouseEvent): void {  
+    if (!this.isSplitterDragging) {  
+      return;  
+    }  
+    
+    const containerOffsetLeft = (document.querySelector('.main-container') as HTMLElement).getBoundingClientRect().left;  
+    const newWidth = event.clientX - containerOffsetLeft;  
+    
+    if (newWidth >= this.designerMinWidth && newWidth <= this.designerMaxWidth) {  
+      this.designerWidth = newWidth;  
+    }  
+  }  
+  
+  onSplitterMouseUp(event: MouseEvent): void {  
+    this.isSplitterDragging = false;  
+    document.removeEventListener('mousemove', this.onSplitterMouseMove.bind(this));  
+    document.removeEventListener('mouseup', this.onSplitterMouseUp.bind(this));  
+  }  
+  
   // Load the prompt from the backend or a file
   loadPrompt(promptType: string, promptName: string | null): void {
     this.loadingPrompt = true;
