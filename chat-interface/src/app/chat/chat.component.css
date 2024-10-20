@@ -3,33 +3,44 @@
   box-sizing: border-box;  
 }  
   
-/* Main container using Flexbox */  
+/* Main Container using CSS Grid */  
 .main-container {  
-  display: flex;  
-  height: calc(100vh - 64px); /* Ajuster en fonction de la hauteur de la toolbar */  
+  display: grid;  
+  grid-template-columns: auto 5px 1fr; /* Designer panel, splitter, chat container */  
+  grid-template-rows: calc(100vh - 64px); /* Ajuster selon la hauteur de la toolbar */  
   overflow: hidden;  
-  min-height: 0; /* Permet aux conteneurs flex de fonctionner correctement */  
+  min-height: 0;  
+}  
+  
+/* Ajustement lorsque le designer est caché */  
+.main-container.no-designer {  
+  grid-template-columns: 1fr;  
 }  
   
 /* Designer panel styles */  
 .designer-panel {  
-  display: flex;  
-  flex-direction: column;  
+  display: grid;  
+  grid-template-rows: auto 1fr;  
+  height: 100%;  
   background-color: #ffffff;  
   border-right: 1px solid #ddd;  
-  box-sizing: border-box;  
-  min-width: 0; /* Aide le flex à gérer correctement les dimensions */  
-  min-height: 0;  
-  flex-shrink: 0;
+  overflow: hidden;  
+}  
+  
+.designer-panel > h3 {  
+  margin: 0;  
+  padding: 16px;  
+  background-color: #f5f5f5;  
+  border-bottom: 1px solid #ddd;  
 }  
   
 /* Splitter styles */  
 .splitter {  
+  grid-column: 2 / 3;  
+  grid-row: 1 / 2;  
   width: 5px;  
   background-color: #ddd;  
   cursor: col-resize;  
-  position: relative;  
-  z-index: 1;  
 }  
   
 .splitter:hover {  
@@ -38,20 +49,20 @@
   
 /* Chat container styles */  
 .chat-container {  
+  grid-column: 3 / 4;  
+  grid-row: 1 / 2;  
   display: flex;  
   flex-direction: column;  
   background-color: #f5f7fa;  
-  flex: 1; /* Assure qu'il prend tout l'espace restant */  
-  min-height: 0; /* Important pour les conteneurs flexibles */  
-  min-width: 500px;
-  flex: 1 1 auto;
-  
+  overflow: hidden;  
+  min-width: 500px;  
 }  
   
 .main-container.no-designer .chat-container {  
+  grid-column: 1 / -1;  
   width: 100%;  
   max-width: 1200px;  
-  margin: 0 auto; /* Centre le chat horizontalement */  
+  margin: 0 auto;  
 }  
   
 /* Toolbar styling */  
@@ -97,38 +108,28 @@ button.active {
   
 /* Designer Tabs */  
 .designer-tabs {  
-  flex: 1;  
-  display: flex;  
-  flex-direction: column;  
-  min-height: 0;  
+  height: 100%;  
+  display: grid;  
+  grid-template-rows: auto 1fr; /* Tabs header, content */  
 }  
   
-.mat-tab-group {  
-  flex: 1;  
-  display: flex;  
-  flex-direction: column;  
-  min-height: 0;  
+.designer-panel .mat-tab-group {  
+  height: 100%;  
+  display: grid;  
+  grid-template-rows: auto 1fr;  
 }  
   
-.mat-tab-body-wrapper {  
-  flex: 1;  
-  min-height: 0;  
-}  
-  
-.mat-tab-body {  
-  flex: 1;  
+.designer-panel .mat-tab-body-wrapper,  
+.designer-panel .mat-tab-body {  
+  height: 100%;  
   overflow: hidden;  
-  display: flex;  
-  flex-direction: column;  
-  min-height: 0;  
 }  
   
 /* Prompt Editor Container */  
 .prompt-editor-container {  
-  flex: 1;  
-  display: flex;  
-  flex-direction: column;  
-  min-height: 0; /* Important pour permettre au textarea de s'étendre */  
+  height: 100%;  
+  display: grid;  
+  grid-template-rows: 1fr auto; /* Editor, actions */  
   position: relative;  
 }  
   
@@ -153,26 +154,21 @@ button.active {
   
 /* Prompt Editor Field */  
 .prompt-editor-field {  
-  flex: 1;  
-  display: flex;  
-  flex-direction: column;  
-  padding: 16px; /* Utiliser padding au lieu de margin */  
-  min-height: 0; /* Pour que le textarea puisse s'étendre correctement */  
+  position: relative;  
+  overflow: hidden;  
 }  
   
-/* Prompt Editor Field styling for textarea */  
 .prompt-editor-field textarea {  
-  flex: 1;  
   width: 100%;  
-  height: auto;  
-  overflow-y: auto;  
+  height: 100%;  
   resize: none;  
   padding: 16px;  
   box-sizing: border-box;  
   border: none;  
   border-radius: 4px;  
+  overflow-y: auto;  
   
-  /* Styles existants pour la colorisation */  
+  /* Styles existants */  
   font-family: 'Roboto Mono', monospace;  
   font-size: 14px;  
   line-height: 1.5;  
@@ -199,41 +195,40 @@ button.active {
 }  
   
 .prompt-editor-field textarea::placeholder {  
-  color: #cccccc; /* Light grey placeholder */  
+  color: #cccccc;  
 }  
   
 /* Prompt Actions */  
 .prompt-actions {  
-  flex-shrink: 0;  
   display: flex;  
   justify-content: flex-end;  
   padding: 8px 16px;  
   background-color: #ffffff;  
-  box-sizing: border-box;  
   border-top: 1px solid #ddd;  
+  box-sizing: border-box;  
 }  
   
 /* Save Button styling */  
 .prompt-actions button[mat-raised-button] {  
-  color: #ffffff; /* White text */  
-  background-color: #3b3e47; /* Same blue as toolbar */  
+  color: #ffffff;  
+  background-color: #3b3e47;  
 }  
   
 .prompt-actions button[mat-raised-button]:hover {  
-  background-color: #5e6373; /* Lighter on hover */  
+  background-color: #5e6373;  
 }  
   
 /* Subprompt Header */  
 .subprompt-header {  
-  display: flex;  
-  align-items: center;  
+  display: grid;  
+  grid-template-columns: 1fr auto;  
   gap: 16px;  
   padding: 16px;  
   border-bottom: 1px solid #ddd;  
 }  
   
 .subprompt-selector {  
-  flex: 1;  
+  width: 100%;  
 }  
   
 .subprompt-actions {  
@@ -248,7 +243,6 @@ button.active {
   padding: 4px 10px;  
   max-width: 100%;  
   background-color: #f5f7fa;  
-  min-height: 0; /* Important pour les conteneurs flexibles */  
 }  
   
 /* Message bubbles */  
@@ -432,4 +426,75 @@ code {
   color: #d63384;  
   padding: 2px 4px;  
   border-radius: 4px;  
+}  
+
+.subprompt-container {  
+  height: 100%;  
+  display: grid;  
+  grid-template-rows: auto 1fr; /* Header, content */  
+  overflow: hidden;  
+}  
+
+  
+/* Subprompt Header */  
+.subprompt-header {  
+  display: flex;  
+  align-items: center;  
+  gap: 16px;  
+  padding: 16px;  
+  border-bottom: 1px solid #ddd;  
+}  
+  
+/* Subprompt Selector */  
+.subprompt-selector {  
+  flex: 1;  
+}  
+  
+/* Subprompt Actions */  
+.subprompt-actions {  
+  display: flex;  
+  gap: 8px;  
+}  
+  
+/* Prompt Editor Container inside Subprompt */  
+.subprompt-container .prompt-editor-container {  
+  height: 100%;  
+  display: grid;  
+  grid-template-rows: 1fr auto; /* Editor field, actions */  
+  position: relative;  
+}  
+  
+/* Prompt Editor Field */  
+.subprompt-container .prompt-editor-field {  
+  position: relative;  
+  overflow: hidden;  
+}  
+  
+/* Textarea Styling */  
+.subprompt-container .prompt-editor-field textarea {  
+  width: 100%;  
+  height: 100%;  
+  resize: none;  
+  padding: 16px;  
+  box-sizing: border-box;  
+  border: none;  
+  border-radius: 4px;  
+  overflow-y: auto;  
+  
+  /* Existing styles */  
+  font-family: 'Roboto Mono', monospace;  
+  font-size: 14px;  
+  line-height: 1.5;  
+  color: #ffffff;  
+  background-color: #1a1a1a;  
+}  
+  
+/* Ensure the prompt-actions stay at the bottom */  
+.subprompt-container .prompt-actions {  
+  display: flex;  
+  justify-content: flex-end;  
+  padding: 8px 16px;  
+  background-color: #ffffff;  
+  border-top: 1px solid #ddd;  
+  box-sizing: border-box;  
 }  

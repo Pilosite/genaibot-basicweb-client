@@ -19,160 +19,160 @@
   
 <div class="main-container" [ngClass]="{'no-designer': !showDesignerPanel}">  
   <!-- Left Panel for Designer -->  
-  <!-- Left Panel for Designer -->  
-<div  
-class="designer-panel"  
-*ngIf="showDesignerPanel"  
-[style.width.px]="designerWidth"  
->  
-<h3>Prompt Manager</h3>  
-
-<!-- Tab Group -->  
-<mat-tab-group  
-  [(selectedIndex)]="selectedTabIndex"  
-  (selectedTabChange)="onTabChange($event)"  
-  class="designer-tabs"  
->  
-  <!-- Core Prompt Tab -->  
-  <mat-tab label="Core Prompt">  
-    <ng-template matTabContent>  
-      <div class="prompt-editor-container">  
-        <!-- Loading Indicator -->  
-        <div *ngIf="loadingPrompt" class="loading-overlay">  
-          <mat-spinner></mat-spinner>  
-        </div>  
-
-        <!-- Prompt Editor -->  
-        <div class="prompt-editor-field">  
-          <textarea  
-            matInput  
-            [(ngModel)]="promptContent"  
-            [disabled]="loadingPrompt"  
-            placeholder="Edit Core Prompt..."  
-          ></textarea>  
-        </div>  
-
-        <!-- Actions -->  
-        <div class="prompt-actions">  
-          <button  
-            mat-raised-button  
-            color="primary"  
-            (click)="savePrompt()"  
-            [disabled]="loadingPrompt"  
-          >  
-            Save Prompt  
-          </button>  
-        </div>  
-      </div>  
-    </ng-template>  
-  </mat-tab>  
-
-  <!-- Main Prompt Tab -->  
-  <mat-tab label="Main Prompt">  
-    <ng-template matTabContent>  
-      <div class="prompt-editor-container">  
-        <!-- Loading Indicator -->  
-        <div *ngIf="loadingPrompt" class="loading-overlay">  
-          <mat-spinner></mat-spinner>  
-        </div>  
-
-        <!-- Prompt Editor -->  
-        <div class="prompt-editor-field">  
-          <textarea  
-            matInput  
-            [(ngModel)]="promptContent"  
-            [disabled]="loadingPrompt"  
-            placeholder="Edit Main Prompt..."  
-          ></textarea>  
-        </div>  
-
-        <!-- Actions -->  
-        <div class="prompt-actions">  
-          <button  
-            mat-raised-button  
-            color="primary"  
-            (click)="savePrompt()"  
-            [disabled]="loadingPrompt"  
-          >  
-            Save Prompt  
-          </button>  
-        </div>  
-      </div>  
-    </ng-template>  
-  </mat-tab>  
-
-  <!-- Subprompts Tab -->  
-  <mat-tab label="Subprompts">  
-    <ng-template matTabContent>  
-      <div class="subprompt-container">  
-        <!-- Subprompt Header -->  
-        <div class="subprompt-header">  
-          <!-- Subprompt Selector -->  
-          <mat-form-field appearance="fill" class="subprompt-selector">  
-            <mat-label>Select Subprompt</mat-label>  
-            <mat-select  
-              [(value)]="selectedSubprompt"  
-              (selectionChange)="onSubpromptSelectionChange($event.value)"  
-            >  
-              <mat-option  
-                *ngFor="let subprompt of availableSubprompts"  
-                [value]="subprompt"  
+  <div  
+    class="designer-panel"  
+    *ngIf="showDesignerPanel"  
+    [style.width.px]="designerWidth"  
+  >  
+    <h3>Prompt Manager</h3>  
+  
+    <!-- Tab Group -->  
+    <mat-tab-group  
+      [(selectedIndex)]="selectedTabIndex"  
+      (selectedTabChange)="onTabChange($event)"  
+      class="designer-tabs"  
+    >  
+      <!-- Core Prompt Tab -->  
+      <mat-tab label="Core Prompt">  
+        <ng-template matTabContent>  
+          <div class="prompt-editor-container">  
+            <!-- Loading Indicator -->  
+            <div *ngIf="loadingPrompt" class="loading-overlay">  
+              <mat-spinner></mat-spinner>  
+            </div>  
+  
+            <!-- Prompt Editor Field -->  
+            <div class="prompt-editor-field">  
+              <textarea  
+                matInput  
+                [(ngModel)]="promptContent"  
+                [disabled]="loadingPrompt"  
+                placeholder="Edit Core Prompt..."  
+              ></textarea>  
+            </div>  
+  
+            <!-- Actions -->  
+            <div class="prompt-actions">  
+              <button  
+                mat-raised-button  
+                color="primary"  
+                (click)="savePrompt()"  
+                [disabled]="loadingPrompt"  
               >  
-                {{ subprompt }}  
-              </mat-option>  
-            </mat-select>  
-          </mat-form-field>  
-
-          <!-- Actions -->  
-          <div class="subprompt-actions">  
-            <button mat-raised-button color="primary" (click)="createSubprompt()">  
-              New Subprompt  
-            </button>  
-            <button  
-              mat-raised-button  
-              color="warn"  
-              (click)="deleteSubprompt()"  
-              [disabled]="!selectedSubprompt"  
-            >  
-              Delete Subprompt  
-            </button>  
+                Save Prompt  
+              </button>  
+            </div>  
           </div>  
-        </div>  
-
-        <div class="prompt-editor-container">  
-          <!-- Loading Indicator -->  
-          <div *ngIf="loadingPrompt" class="loading-overlay">  
-            <mat-spinner></mat-spinner>  
+        </ng-template>  
+      </mat-tab>  
+  
+      <!-- Main Prompt Tab -->  
+      <mat-tab label="Main Prompt">  
+        <ng-template matTabContent>  
+          <div class="prompt-editor-container">  
+            <!-- Loading Indicator -->  
+            <div *ngIf="loadingPrompt" class="loading-overlay">  
+              <mat-spinner></mat-spinner>  
+            </div>  
+  
+            <!-- Prompt Editor Field -->  
+            <div class="prompt-editor-field">  
+              <textarea  
+                matInput  
+                [(ngModel)]="promptContent"  
+                [disabled]="loadingPrompt"  
+                placeholder="Edit Main Prompt..."  
+              ></textarea>  
+            </div>  
+  
+            <!-- Actions -->  
+            <div class="prompt-actions">  
+              <button  
+                mat-raised-button  
+                color="primary"  
+                (click)="savePrompt()"  
+                [disabled]="loadingPrompt"  
+              >  
+                Save Prompt  
+              </button>  
+            </div>  
           </div>  
-
-          <!-- Prompt Editor -->  
-          <div class="prompt-editor-field">  
-            <textarea  
-              matInput  
-              [(ngModel)]="promptContent"  
-              [disabled]="loadingPrompt || !selectedSubprompt"  
-              placeholder="Edit Subprompt..."  
-            ></textarea>  
+        </ng-template>  
+      </mat-tab>  
+  
+      <!-- Subprompts Tab -->  
+      <mat-tab label="Subprompts">  
+        <ng-template matTabContent>  
+          <!-- Subprompt Container with Grid -->  
+          <div class="subprompt-container">  
+            <!-- Subprompt Header -->  
+            <div class="subprompt-header">  
+              <!-- Subprompt Selector -->  
+              <mat-form-field appearance="fill" class="subprompt-selector">  
+                <mat-label>Select Subprompt</mat-label>  
+                <mat-select  
+                  [(value)]="selectedSubprompt"  
+                  (selectionChange)="onSubpromptSelectionChange($event.value)"  
+                >  
+                  <mat-option  
+                    *ngFor="let subprompt of availableSubprompts"  
+                    [value]="subprompt"  
+                  >  
+                    {{ subprompt }}  
+                  </mat-option>  
+                </mat-select>  
+              </mat-form-field>  
+        
+              <!-- Actions -->  
+              <div class="subprompt-actions">  
+                <button mat-raised-button color="primary" (click)="createSubprompt()">  
+                  New Subprompt  
+                </button>  
+                <button  
+                  mat-raised-button  
+                  color="warn"  
+                  (click)="deleteSubprompt()"  
+                  [disabled]="!selectedSubprompt"  
+                >  
+                  Delete Subprompt  
+                </button>  
+              </div>  
+            </div>  
+        
+            <!-- Prompt Editor Container -->  
+            <div class="prompt-editor-container">  
+              <!-- Loading Indicator -->  
+              <div *ngIf="loadingPrompt" class="loading-overlay">  
+                <mat-spinner></mat-spinner>  
+              </div>  
+        
+              <!-- Prompt Editor Field -->  
+              <div class="prompt-editor-field">  
+                <textarea  
+                  matInput  
+                  [(ngModel)]="promptContent"  
+                  [disabled]="loadingPrompt || !selectedSubprompt"  
+                  placeholder="Edit Subprompt..."  
+                ></textarea>  
+              </div>  
+        
+              <!-- Save Button -->  
+              <div class="prompt-actions">  
+                <button  
+                  mat-raised-button  
+                  color="primary"  
+                  (click)="savePrompt()"  
+                  [disabled]="loadingPrompt || !selectedSubprompt"  
+                >  
+                  Save Subprompt  
+                </button>  
+              </div>  
+            </div>  
           </div>  
-
-          <!-- Save Button -->  
-          <div class="prompt-actions">  
-            <button  
-              mat-raised-button  
-              color="primary"  
-              (click)="savePrompt()"  
-              [disabled]="loadingPrompt || !selectedSubprompt"  
-            >  
-              Save Subprompt  
-            </button>  
-          </div>  
-        </div>  
-      </div>  
-    </ng-template>  
-  </mat-tab>  
-</mat-tab-group>  
-</div>  
-
+        </ng-template>  
+      </mat-tab>  
+    </mat-tab-group>  
+  </div>  
   
   <!-- Splitter -->  
   <div  
@@ -233,9 +233,9 @@ class="designer-panel"
               <strong>File: {{ message.file.title }}</strong>  
   
               <!-- Show a preview of the content with sanitization -->  
-              <pre class="file-preview" *ngIf="!message.file.isExpanded">{{  
-                sanitizeFileContent(getFilePreview(message.file.content))  
-              }}</pre>  
+              <pre class="file-preview" *ngIf="!message.file.isExpanded">  
+                {{ sanitizeFileContent(getFilePreview(message.file.content)) }}  
+              </pre>  
   
               <!-- Expand/collapse button -->  
               <button  
@@ -258,8 +258,9 @@ class="designer-panel"
                 color="primary"  
                 [href]="fileToUrl(message.file)"  
                 download="{{ message.file.filename }}"  
-                >Download</a  
               >  
+                Download  
+              </a>  
             </div>  
           </div>  
         </div>  
