@@ -156,19 +156,38 @@ async def send_message_to_clients(message: Dict):
         await asyncio.gather(*(connection.send_json(message) for connection in connected_clients))
 
 
-async def call_llm_backend(message_payload):
-    global session
-    headers = {"Content-Type": "application/json"}
-    try:
-        async with session.post(LLM_NOTIFICATION_ENDPOINT, headers=headers, json=message_payload) as response:
-            if response.status in [200, 202]:
-                logger.info("Message accepted by LLM backend.")
-            else:
-                logger.error(f"Failed to send message to LLM backend: {response.status}")
-    except asyncio.TimeoutError:
-        logger.error("Timeout while sending message to LLM backend.")
-    except Exception as e:
-        logger.error(f"Error during LLM backend interaction: {str(e)}")
+async def call_llm_backend(message_payload):  
+    global session  
+    headers = {"Content-Type": "application/json"}  
+    try:  
+        async with session.post(LLM_NOTIFICATION_ENDPOINT, headers=headers, json=message_payload) as response:  
+            if response.status in [200, 202]:  
+                logger.info("Message accepted by LLM backend.")  
+            else:  
+                logger.error(f"Failed to send message to LLM backend: {response.status}")  
+                # Send error message to connected clients  
+                error_message = {  
+                    "event_type": "ERROR",  
+                    "error": f"Failed to send message to external API. Status code: {response.status}"  
+                }  
+                await send_message_to_clients(error_message)  
+    except asyncio.TimeoutError:  
+        logger.error("Timeout while sending message to LLM backend.")  
+        # Send error message to connected clients  
+        error_message = {  
+            "event_type": "ERROR",  
+            "error": "Timeout while connecting to the external API."  
+        }  
+        await send_message_to_clients(error_message)  
+    except Exception as e:  
+        logger.error(f"Error during LLM backend interaction: {str(e)}")  
+        # Send error message to connected clients  
+        error_message = {  
+            "event_type": "ERROR",  
+            "error": f"Error during LLM backend interaction: {str(e)}"  
+        }  
+        await send_message_to_clients(error_message)  
+
 
 @app.post("/api/receive_message")
 async def receive_message(request: Request):

@@ -16,6 +16,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabChangeEvent } from '@angular/material/tabs';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatSelect, MatSelectModule, MatOption } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import hljs from 'highlight.js';  
 import { EmojiService } from '../services/emoji.service';
@@ -25,21 +26,22 @@ import { Subject } from 'rxjs';
 import { filter, share } from 'rxjs/operators';  
 
 // Définition de l'interface WSMessage    
-interface WSMessage {
-  id?: number;
-  role?: string;
-  content?: string;
-  text?: string;
-  is_internal?: boolean;
-  reactions?: string[];
-  update?: string;
-  reaction_name?: string;
-  user_name?: string;
-  timestamp?: string;
-  thread_id?: string;
-  files_content?: { file_content: string, filename: string, title: string }[]; // Add files_content for file upload
-  event_type?: string; // Add event_type to distinguish message types
-}
+interface WSMessage {  
+  id?: number;  
+  role?: string;  
+  content?: string;  
+  text?: string;  
+  is_internal?: boolean;  
+  reactions?: string[];  
+  update?: string;  
+  reaction_name?: string;  
+  user_name?: string;  
+  timestamp?: string;  
+  thread_id?: string;  
+  files_content?: { file_content: string, filename: string, title: string }[]; // For file uploads  
+  event_type?: string; // To distinguish message types  
+  error?: string; // Add this line for the error property  
+}  
 
 interface Message {
   timestamp: string;
@@ -77,7 +79,8 @@ interface FileAttachment {
     MatInputModule,
     MatSelect,
     MatOption,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatSnackBarModule
   ],    
 })
 
@@ -123,7 +126,7 @@ export class ChatComponent implements OnInit, AfterViewInit {
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
     private emojiService: EmojiService,
-    
+    private snackBar: MatSnackBar    
   ) {
     this.showInternalMessages = true;
   }
@@ -376,6 +379,29 @@ export class ChatComponent implements OnInit, AfterViewInit {
   }
 
   handleSocketMessage(wsMessage: WSMessage): void {  
+    // Handle error messages from the backend  
+    if (wsMessage.event_type === 'ERROR') {  
+      // Display the error message using MatSnackBar  
+      this.snackBar.open(wsMessage.error || 'An error occurred.', 'Close', {  
+          duration: 5000,  
+          panelClass: ['error-snackbar'],  
+          verticalPosition: 'top',  
+          horizontalPosition: 'center'  
+      });  
+
+      // Reset the waiting states  
+      this.isWaitingForResponse = false;  
+      this.userStoppedWaiting = false;  
+
+      // Reset any flags or variables related to message processing  
+      this.stopProcessingMessages = true; // To cancel processing any pending messages  
+
+      // Update the UI button state  
+      this.updateSendButtonState();  
+
+      return;  
+    }  
+
     if (this.stopProcessingMessages) {  
         console.log('Message processing stopped. Ignoring incoming message.');  
         return;  

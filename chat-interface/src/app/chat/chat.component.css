@@ -504,3 +504,13 @@ code {
   border-top: 1px solid #ddd;  
   box-sizing: border-box;  
 }  
+
+.error-snackbar {  
+  background-color: #f8d7da; /* Light red background */  
+  color: #721c24;            /* Dark red text */  
+}  
+
+.mat-snack-bar-container.error-snackbar {  
+  background-color: #f8d7da; /* Light red background */  
+  color: #721c24;            /* Dark red text */  
+}  
