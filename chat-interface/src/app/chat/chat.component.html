@@ -1,306 +1,152 @@
-<!-- chat.component.html -->  
-<mat-toolbar color="primary">  
-  <span>GenaiBot Bot Builder</span>  
-  <span class="spacer"></span>  
-  <!-- Toggle button for internal messages -->  
-  <button mat-button (click)="toggleInternalMessages()" [ngClass]="{'active': showInternalMessages}">  
-    <mat-icon>{{ showInternalMessages ? 'visibility_off' : 'visibility' }}</mat-icon>  
-    {{ showInternalMessages ? 'Hide' : 'Show' }} Internal Messages  
-  </button>  
-  <button mat-button (click)="resetConversation()">Reset Conversation</button>  
-  <button  
-    mat-button  
-    (click)="toggleDesignerPanel()"  
-    [ngClass]="{'active': showDesignerPanel}"  
-  >  
-    <mat-icon>edit</mat-icon> Designer  
-  </button>  
-</mat-toolbar>  
-  
-<div class="main-container" [ngClass]="{'no-designer': !showDesignerPanel}">  
-  <!-- Left Panel for Designer -->  
-  <div  
-    class="designer-panel"  
-    *ngIf="showDesignerPanel"  
-    [style.width.px]="designerWidth"  
-  >  
-    <h3>Prompt Manager</h3>  
-  
-    <!-- Tab Group -->  
-    <mat-tab-group  
-      [(selectedIndex)]="selectedTabIndex"  
-      (selectedTabChange)="onTabChange($event)"  
-      class="designer-tabs"  
+<div class="chat-container mat-typography">  
+  <!-- Message List -->  
+  <div class="message-list" #messageList (scroll)="onScroll()">  
+    <div  
+      *ngFor="let message of messages"  
+      [ngClass]="[  
+        'message',  
+        message.role,  
+        message.is_internal ? 'internal' : '',  
+        message.message_type === 'file' ? 'file-upload' : '',  
+        message.message_type === 'COMMENT' ? 'comment-message' : ''  
+      ]"  
+      [class.hidden]="!showInternalMessages && message.is_internal"  
     >  
-      <!-- Core Prompt Tab -->  
-      <mat-tab label="Core Prompt">  
-        <ng-template matTabContent>  
-          <div class="prompt-editor-container">  
-            <!-- Loading Indicator -->  
-            <div *ngIf="loadingPrompt" class="loading-overlay">  
-              <mat-spinner></mat-spinner>  
-            </div>  
-  
-            <!-- Prompt Editor Field -->  
-            <div class="prompt-editor-field">  
-              <textarea  
-                matInput  
-                [(ngModel)]="promptContent"  
-                [disabled]="loadingPrompt"  
-                placeholder="Edit Core Prompt..."  
-              ></textarea>  
-            </div>  
-  
-            <!-- Actions -->  
-            <div class="prompt-actions">  
-              <button  
-                mat-raised-button  
-                color="primary"  
-                (click)="savePrompt()"  
-                [disabled]="loadingPrompt"  
-              >  
-                Save Prompt  
-              </button>  
-            </div>  
-          </div>  
-        </ng-template>  
-      </mat-tab>  
-  
-      <!-- Main Prompt Tab -->  
-      <mat-tab label="Main Prompt">  
-        <ng-template matTabContent>  
-          <div class="prompt-editor-container">  
-            <!-- Loading Indicator -->  
-            <div *ngIf="loadingPrompt" class="loading-overlay">  
-              <mat-spinner></mat-spinner>  
-            </div>  
-  
-            <!-- Prompt Editor Field -->  
-            <div class="prompt-editor-field">  
-              <textarea  
-                matInput  
-                [(ngModel)]="promptContent"  
-                [disabled]="loadingPrompt"  
-                placeholder="Edit Main Prompt..."  
-              ></textarea>  
-            </div>  
-  
-            <!-- Actions -->  
-            <div class="prompt-actions">  
-              <button  
-                mat-raised-button  
-                color="primary"  
-                (click)="savePrompt()"  
-                [disabled]="loadingPrompt"  
-              >  
-                Save Prompt  
-              </button>  
-            </div>  
-          </div>  
-        </ng-template>  
-      </mat-tab>  
-  
-      <!-- Subprompts Tab -->  
-      <mat-tab label="Subprompts">  
-        <ng-template matTabContent>  
-          <!-- Subprompt Container with Grid -->  
-          <div class="subprompt-container">  
-            <!-- Subprompt Header -->  
-            <div class="subprompt-header">  
-              <!-- Subprompt Selector -->  
-              <mat-form-field appearance="fill" class="subprompt-selector">  
-                <mat-label>Select Subprompt</mat-label>  
-                <mat-select  
-                  [(value)]="selectedSubprompt"  
-                  (selectionChange)="onSubpromptSelectionChange($event.value)"  
-                >  
-                  <mat-option  
-                    *ngFor="let subprompt of availableSubprompts"  
-                    [value]="subprompt"  
-                  >  
-                    {{ subprompt }}  
-                  </mat-option>  
-                </mat-select>  
-              </mat-form-field>  
-        
-              <!-- Actions -->  
-              <div class="subprompt-actions">  
-                <button mat-raised-button color="primary" (click)="createSubprompt()">  
-                  New Subprompt  
-                </button>  
-                <button  
-                  mat-raised-button  
-                  color="warn"  
-                  (click)="deleteSubprompt()"  
-                  [disabled]="!selectedSubprompt"  
-                >  
-                  Delete Subprompt  
-                </button>  
-              </div>  
-            </div>  
-        
-            <!-- Prompt Editor Container -->  
-            <div class="prompt-editor-container">  
-              <!-- Loading Indicator -->  
-              <div *ngIf="loadingPrompt" class="loading-overlay">  
-                <mat-spinner></mat-spinner>  
-              </div>  
-        
-              <!-- Prompt Editor Field -->  
-              <div class="prompt-editor-field">  
-                <textarea  
-                  matInput  
-                  [(ngModel)]="promptContent"  
-                  [disabled]="loadingPrompt || !selectedSubprompt"  
-                  placeholder="Edit Subprompt..."  
-                ></textarea>  
-              </div>  
-        
-              <!-- Save Button -->  
-              <div class="prompt-actions">  
-                <button  
-                  mat-raised-button  
-                  color="primary"  
-                  (click)="savePrompt()"  
-                  [disabled]="loadingPrompt || !selectedSubprompt"  
-                >  
-                  Save Subprompt  
-                </button>  
-              </div>  
-            </div>  
-          </div>  
-        </ng-template>  
-      </mat-tab>  
-    </mat-tab-group>  
-  </div>  
-  
-  <!-- Splitter -->  
-  <div  
-    class="splitter"  
-    *ngIf="showDesignerPanel"  
-    (mousedown)="onSplitterMouseDown($event)"  
-  ></div>  
-  
-  <!-- Right Panel for Chat -->  
-  <div class="chat-container mat-typography">  
-    <!-- Message List -->  
-    <div class="message-list" #messageList (scroll)="onScroll()">  
-      <div  
-        *ngFor="let message of messages"  
-        [ngClass]="[  
-          'message',  
-          message.role,  
-          message.is_internal ? 'internal' : '',  
-          message.file ? 'file-upload' : ''  
-        ]"  
-        [class.hidden]="!showInternalMessages && message.is_internal"  
-      >  
-        <!-- Message Info -->  
-        <div class="message-info">  
-          <!-- Reactions -->  
-          <div class="reactions" *ngIf="message.reactions.length">  
-            <span *ngFor="let reaction of message.reactions">{{ reaction }}</span>  
-          </div>  
-  
-          <span class="sender-name">{{ message.username }}</span>  
-          <span class="timestamp">{{ formatTimestamp(message.timestamp) }}</span>  
+      <!-- Message Info -->  
+      <div class="message-info">  
+        <!-- Reactions -->  
+        <div class="reactions" *ngIf="message.reactions.length">  
+          <span *ngFor="let reaction of message.reactions">{{ reaction }}</span>  
         </div>  
   
+        <span class="sender-name">{{ message.username }}</span>  
+        <span class="timestamp">{{ formatTimestamp(message.timestamp) }}</span>  
+      </div>  
+  
+      <!-- Messages of type COMMENT -->  
+      <ng-container *ngIf="message.message_type === 'COMMENT'; else otherMessages">  
+        <div class="comment-block">  
+          {{ message.content }}  
+        </div>  
+      </ng-container>  
+  
+      <!-- Other Message Types -->  
+      <ng-template #otherMessages>  
         <!-- Message Content -->  
         <div  
           class="message-content mat-elevation-z1"  
           [ngClass]="{  
-            'bubble-right': message.role === 'user' && !message.is_internal && !message.file,  
-            'bubble-left': message.role === 'assistant' && message.is_internal,  
-            'full-width': (message.role === 'assistant' && !message.is_internal) || message.file  
+            'bubble-right': message.role === 'user' && !message.is_internal && message.message_type !== 'file',  
+            'bubble-left': message.role === 'assistant' && message.is_internal && message.message_type === 'TEXT',  
+            'full-width': (message.role === 'assistant' && !message.is_internal) || message.message_type === 'file'  
           }"  
         >  
-          <!-- Render message content if exists -->  
-          <markdown *ngIf="message.content" [data]="message.content"></markdown>  
+          <!-- Type: TEXT -->  
+          <ng-container *ngIf="message.message_type === 'TEXT'">  
+            <!-- Render message content if exists -->  
+            <markdown *ngIf="message.content" [data]="message.content"></markdown>  
   
-          <!-- Handle file uploads -->  
-          <div *ngIf="message.file" class="file-content">  
-            <!-- If the file is an image, display it -->  
+            <!-- If the message contains an image URL, display the image -->  
             <img  
-              *ngIf="isImageFile(message.file.filename)"  
-              [src]="fileToUrl(message.file)"  
-              alt="{{ message.file.title }}"  
-              style="max-width: 200px;"  
-            />  
+              *ngIf="message.imageUrl"  
+              [src]="getSafeImageUrl(message.imageUrl)"  
+              alt="Image"  
+              style="max-width: 200px; margin-top: 10px;"  
+            />   
+          </ng-container>  
   
-            <!-- Otherwise, show the file name with a preview and download link -->  
-            <div *ngIf="!isImageFile(message.file.filename)">  
-              <div class="file-header">  
-                <strong>File: {{ message.file.title }}</strong>  
-                <!-- Expand/collapse button -->  
-                <button  
-                  mat-raised-button  
-                  color="accent"  
-                  *ngIf="shouldShowExpandButton(message.file.content)"  
-                  (click)="toggleFileExpand(message.file)"  
-                >  
-                  {{ message.file.isExpanded ? 'Collapse' : 'Expand' }}  
-                </button>  
-              </div>  
-              <!-- Show a preview of the content with sanitization -->  
-              <pre class="file-preview" *ngIf="!message.file.isExpanded">  
-                {{ sanitizeFileContent(getFilePreview(message.file.content)) }}  
-              </pre>  
-              <!-- Full content with sanitization and custom styling if expanded -->  
-              <pre class="file-full-content dark-theme" *ngIf="message.file.isExpanded">  
-                {{ sanitizeFileContent(message.file.content) }}  
-              </pre>  
-              <!-- Download link -->  
-              <a  
-                mat-button  
-                color="primary"  
-                [href]="fileToUrl(message.file)"  
-                download="{{ message.file.filename }}"  
-              >  
-                Download  
-              </a>  
+          <!-- Type: CODEBLOCK -->  
+          <ng-container *ngIf="message.message_type === 'CODEBLOCK'">  
+            <div class="codeblock">  
+              <div class="codeblock-title">{{ message.title }}</div>  
+              <pre><code [innerHTML]="highlightText(message.content)"></code></pre>  
             </div>  
-            
-          </div>  
+          </ng-container>  
+  
+          <!-- Type: file -->  
+          <ng-container *ngIf="message.message_type === 'file' && message.file">  
+            <div class="file-content">  
+              <!-- If the file is an image, display it -->  
+              <img    
+                *ngIf="isImageFile(message.file.filename)"    
+                [src]="fileToUrl(message.file)"    
+                alt="{{ message.file.title }}"    
+                style="max-width: 200px;"    
+              />   
+  
+              <!-- Otherwise, display file info with options -->  
+              <div *ngIf="!isImageFile(message.file.filename)">  
+                <div class="file-header">  
+                  <strong>File: {{ message.file.title }}</strong>  
+                  <!-- Button to expand/collapse content -->  
+                  <button  
+                    mat-raised-button  
+                    color="accent"  
+                    *ngIf="shouldShowExpandButton(message.file.content)"  
+                    (click)="toggleFileExpand(message.file)"  
+                  >  
+                    {{ message.file.isExpanded ? 'Collapse' : 'Expand' }}  
+                  </button>  
+                </div>  
+                <!-- Content preview with sanitization -->  
+                <pre class="file-preview" *ngIf="!message.file.isExpanded">  
+                  {{ sanitizeFileContent(getFilePreview(message.file.content)) }}  
+                </pre>  
+                <!-- Contenu complet -->  
+                <pre class="file-full-content dark-theme" *ngIf="message.file.isExpanded">  
+                  {{ sanitizeFileContent(message.file.content) }}  
+                </pre>  
+                <!-- Download link -->  
+                <a  
+                  mat-button  
+                  color="primary"  
+                  [href]="fileToUrl(message.file)"  
+                  [download]="message.file.filename"  
+                >  
+                  Download  
+                </a>  
+              </div>  
+            </div>  
+          </ng-container>  
         </div>  
-      </div>  
+      </ng-template>  
     </div>  
+  </div>  
   
-    <!-- Input Area -->  
-    <div class="input-area">  
-      <mat-form-field class="message-input" appearance="outline">  
-        <textarea  
-          matInput  
-          id="messageInput"  
-          [(ngModel)]="userInput"  
-          placeholder="Type your message..."  
-          rows="3"  
-          (keydown.enter)="sendMessage(); $event.preventDefault()"  
-          [disabled]="isWaitingForResponse && !userStoppedWaiting"  
-        ></textarea>  
-      </mat-form-field>  
+  <!-- Input Area -->  
+  <div class="input-area">  
+    <mat-form-field class="message-input" appearance="outline">  
+      <textarea  
+        matInput  
+        id="messageInput"  
+        [(ngModel)]="userInput"  
+        placeholder="Type your message..."  
+        rows="3"  
+        (keydown.enter)="sendMessage(); $event.preventDefault()"  
+        [disabled]="isWaitingForResponse && !userStoppedWaiting"  
+      ></textarea>  
+    </mat-form-field>  
   
-      <button  
-        mat-raised-button  
-        id="sendButton"  
-        color="primary"  
-        *ngIf="!isWaitingForResponse || userStoppedWaiting"  
-        (click)="sendMessage()"  
-        [disabled]="userInput.trim() === ''"  
-      >  
-        Send  
-      </button>  
+    <button  
+      mat-raised-button  
+      id="sendButton"  
+      color="primary"  
+      *ngIf="!isWaitingForResponse || userStoppedWaiting"  
+      (click)="sendMessage()"  
+      [disabled]="userInput.trim() === ''"  
+    >  
+      Send  
+    </button>  
   
-      <!-- Show a "Stop" button when waiting for a response -->  
-      <button  
-        mat-raised-button  
-        id="stopButton"  
-        color="warn"  
-        *ngIf="isWaitingForResponse && !userStoppedWaiting"  
-        (click)="stopWaiting()"  
-      >  
-        Stop  
-      </button>  
-    </div>  
+    <!-- Display a "Stop" button when waiting for a response -->  
+    <button  
+      mat-raised-button  
+      id="stopButton"  
+      color="warn"  
+      *ngIf="isWaitingForResponse && !userStoppedWaiting"  
+      (click)="stopWaiting()"  
+    >  
+      Stop  
+    </button>  
   </div>  
 </div>  

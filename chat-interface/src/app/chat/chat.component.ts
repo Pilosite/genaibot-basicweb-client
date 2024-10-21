@@ -4,7 +4,8 @@ import { CommonModule } from '@angular/common';
 import { MarkdownModule } from 'ngx-markdown';    
 import { HttpClient } from '@angular/common/http';    
 import { WebSocketSubject } from 'rxjs/webSocket';    
-import { environment } from '../../environment/environment';    
+import { environment } from '../../environment/environment';   
+import { DomSanitizer, SafeHtml, SafeUrl  } from '@angular/platform-browser';   
 
 // Import des modules Angular Material    
 import { MatToolbarModule } from '@angular/material/toolbar';    
@@ -41,18 +42,24 @@ interface WSMessage {
   files_content?: { file_content: string, filename: string, title: string }[]; // For file uploads  
   event_type?: string; // To distinguish message types  
   error?: string; // Add this line for the error property  
+  imageUrl?: string;
+  message_type?: string;
+  title?: string;
 }  
 
-interface Message {
-  timestamp: string;
-  thread_id: string;
-  role: string;
-  content: string;
-  is_internal: boolean;
-  reactions: string[];
-  username: string;
-  file?: FileAttachment;  // Optional file property
-}
+interface Message {  
+  timestamp: string;  
+  thread_id: string;  
+  role: string;  
+  content: string;  
+  is_internal: boolean;  
+  reactions: string[];  
+  username: string;  
+  message_type: string; // Ajout du champ message_type  
+  title?: string;       // Pour les codeblocks, s'il y a un titre  
+  imageUrl?: string | null;  
+  file?: FileAttachment;  
+}  
 
 interface FileAttachment {
   filename: string;
@@ -126,7 +133,8 @@ export class ChatComponent implements OnInit, AfterViewInit {
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
     private emojiService: EmojiService,
-    private snackBar: MatSnackBar    
+    private snackBar: MatSnackBar,
+    private sanitizer: DomSanitizer
   ) {
     this.showInternalMessages = true;
   }
@@ -442,22 +450,48 @@ export class ChatComponent implements OnInit, AfterViewInit {
     return imageExtensions.includes(ext || '');
   }
 
-  fileToUrl(file: FileAttachment): string {
-    if (!file.blobUrl) {
-      const decodedContent = this.deSanitizeContent(file.content);  // Use the updated function
-      const blob = new Blob([decodedContent], { type: 'text/plain' });
-      file.blobUrl = URL.createObjectURL(blob);
-    }
-    return file.blobUrl || '';
-  }
+  public fileToUrl(file: FileAttachment): string {  
+    if (!file.blobUrl) {  
+      const decodedContent = this.deSanitizeContent(file.content);  
+      const mimeType = this.getFileMimeType(file.filename);  
+      const blob = new Blob([decodedContent], { type: mimeType });  
+      file.blobUrl = URL.createObjectURL(blob);  
+    }  
+    return file.blobUrl || '';  
+  }  
   
+  deSanitizeContent(content: string): string {  
+    try {  
+      // Supprimer les doubles échappements  
+      content = content.replace(/\\\\/g, '\\');  
+    
+      // Gérer les séquences d'échappement  
+      content = content.replace(/\\n/g, '\n')  
+                       .replace(/\\r/g, '\r')  
+                       .replace(/\\t/g, '\t')  
+                       .replace(/\\"/g, '"')  
+                       .replace(/\\'/g, "'");  
+    
+      // Tenter de parser le JSON si applicable  
+      if (this.isJsonString(content)) {  
+        const parsed = JSON.parse(content);  
+        return JSON.stringify(parsed, null, 2);  
+      } else {  
+        return content;  
+      }  
+    } catch (e) {  
+      console.error('Erreur lors de la désanitation du contenu:', e);  
+      return content;  
+    }  
+  }  
 
-  deSanitizeContent(content: string): string {
-    return content.replace(/\\u[\dA-Fa-f]{4}/g, (match) => {
-      return String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16));
-    }).replace(/\\n/g, '\n')  // Handle new lines
-      .replace(/\\"/g, '"');   // Handle escaped quotes
-  }
+  sanitizeContent(content: string): SafeHtml {  
+    return this.sanitizer.bypassSecurityTrustHtml(content);  
+  }  
+  
+  private unescapeContent(content: string): string {  
+    return content.replace(/\\\\/g, '\\');  
+  }  
   
   // Check if the expand button should be shown
   shouldShowExpandButton(content: string): boolean {
@@ -469,12 +503,9 @@ export class ChatComponent implements OnInit, AfterViewInit {
     file.isExpanded = !file.isExpanded;
   }
 
-  sanitizeFileContent(content: string): string {
-    // Decode common escape sequences (e.g., \n -> new line, \" -> quote)
-    const textArea = document.createElement('textarea');
-    textArea.innerHTML = content;
-    return textArea.value.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\'/g, "'");
-  }
+  sanitizeFileContent(content: string): string {  
+    return this.deSanitizeContent(content);  
+  }  
 
   /**
    * Highlight the preview of the file content (first few lines or characters)
@@ -500,148 +531,333 @@ export class ChatComponent implements OnInit, AfterViewInit {
     return highlighted;
   }
 
-  getFileMimeType(filename: string): string {
-    const extension = filename.split('.').pop()?.toLowerCase();
-    switch (extension) {
-      case 'txt': return 'text/plain';
-      case 'json': return 'application/json';
-      case 'yaml': return 'text/yaml';
-      case 'jpg': case 'jpeg': return 'image/jpeg';
-      case 'png': return 'image/png';
-      case 'gif': return 'image/gif';
-      default: return 'application/octet-stream';
-    }
-  }
+  getFileMimeType(filename: string): string {  
+    const extension = filename.split('.').pop()?.toLowerCase();  
+    switch (extension) {  
+      case 'txt': return 'text/plain';  
+      case 'json': return 'application/json';  
+      case 'yaml': case 'yml': return 'application/x-yaml';  
+      case 'jpg': case 'jpeg': return 'image/jpeg';  
+      case 'png': return 'image/png';  
+      case 'gif': return 'image/gif';  
+      case 'svg': return 'image/svg+xml';  
+      case 'pdf': return 'application/pdf';  
+      default: return 'application/octet-stream';  
+    }  
+  }  
 
   getFilePreview(content: string): string {
     const previewLimit = 100;
     return content.length > previewLimit ? content.substring(0, previewLimit) + '...' : content;
   }
 
-  processMessage(wsMessage: WSMessage): void {  
-    // Vérifier si le traitement des messages est arrêté  
-    if (this.stopProcessingMessages) {  
-      console.log('Message processing is stopped. Ignoring incoming message.');  
+  processMessage(wsMessage: WSMessage): void {    
+    // Vérifier si le traitement des messages est arrêté    
+    if (this.stopProcessingMessages) {    
+      console.log('Message processing is stopped. Ignoring incoming message.');    
+      return;    
+    }    
+      
+    console.log('Processing WebSocket message:', wsMessage);    
+    console.log(`Event Type: ${wsMessage.event_type}`);    
+      
+    // Gérer les erreurs du backend  
+    if (wsMessage.event_type === 'ERROR') {  
+      // Traiter l'erreur (afficher un message, etc.)  
+      console.error('Erreur reçue du backend:', wsMessage.error);  
+    
+      // Réinitialiser les états d'attente  
+      this.isWaitingForResponse = false;  
+      this.userStoppedWaiting = false;  
+    
+      // Mettre à jour l'interface utilisateur si nécessaire  
+      this.updateSendButtonState();  
+    
       return;  
     }  
     
-    console.log('Processing WebSocket message:', wsMessage);  
-    console.log(`Event Type: ${wsMessage.event_type}`);  
+    // Gérer les mises à jour des réactions    
+    if (    
+      wsMessage.event_type === 'REACTION_UPDATE' &&    
+      (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove')    
+    ) {    
+      console.log('Processing reaction update:', wsMessage);    
+      const reactionName = wsMessage.reaction_name || ''; // Utiliser le nom de la réaction du wsMessage    
+      
+      // Si la réaction est "done", mettre à jour l'état    
+      if (reactionName === 'done' && wsMessage.update === 'reaction_add') {    
+        this.isWaitingForResponse = false; // Réaction "done" reçue    
+        this.userStoppedWaiting = false; // Réinitialiser le drapeau    
+      }    
+      
+      // Trouver le message auquel la réaction s'applique    
+      const message = this.messages.find((msg) => {    
+        const msgTimestamp = String(msg.timestamp).trim();    
+        const wsTimestamp = String(wsMessage.timestamp).trim();    
+        const msgThreadId = String(msg.thread_id).trim();    
+        const wsThreadId = String(wsMessage.thread_id).trim();    
+        // Trouver le message correspondant en utilisant le timestamp et le thread_id    
+        return msgTimestamp === wsTimestamp && msgThreadId === wsThreadId;    
+      });    
+      
+      if (message && reactionName) {    
+        const emoji = this.getEmojiByName(reactionName) || reactionName;    
+        if (wsMessage.update === 'reaction_add') {    
+          if (!message.reactions.includes(emoji)) {    
+            message.reactions.push(emoji);    
+          }    
+        } else if (wsMessage.update === 'reaction_remove') {    
+          const index = message.reactions.indexOf(emoji);    
+          if (index !== -1) {    
+            message.reactions.splice(index, 1);    
+          }    
+        }    
+      } else {    
+        console.warn('Message not found for reaction update.');    
+        this.pendingReactions.push(wsMessage);    
+      }    
+      // Ne pas appeler scrollToBottom() ici pour éviter de perturber le défilement de l'utilisateur    
+      return; // Sortir de la fonction après avoir traité les réactions    
+    }    
+      
+    // Gérer les uploads de fichiers    
+    else if (wsMessage.event_type === 'FILE_UPLOAD' && wsMessage.files_content?.length) {    
+      console.log('Processing FILE_UPLOAD message:', wsMessage);    
     
-    // Gérer les mises à jour des réactions  
-    if (wsMessage.event_type === 'REACTION_UPDATE' && (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove')) {  
-      console.log('Processing reaction update:', wsMessage);  
-      const reactionName = wsMessage.reaction_name || '';  // Utiliser le nom de la réaction du wsMessage  
+      // Parcourir les fichiers reçus    
+      wsMessage.files_content.forEach((fileContent) => {    
+        const file: FileAttachment = {    
+          filename: fileContent.filename,    
+          title: fileContent.title || fileContent.filename,    
+          content: fileContent.file_content,    
+          isExpanded: false,    
+          blobUrl: ''    
+        };    
     
-      // Si la réaction est "done", mettre à jour l'état  
-      if (reactionName === 'done' && wsMessage.update === 'reaction_add') {  
-        this.isWaitingForResponse = false;  // Réaction "done" reçue  
-        this.userStoppedWaiting = false;    // Réinitialiser le drapeau  
-      }  
+        // Générer la Blob URL à partir du contenu du fichier  
+        this.createBlobUrl(file);  
     
-      // Trouver le message auquel la réaction s'applique  
-      const message = this.messages.find(msg => {  
-        const msgTimestamp = String(msg.timestamp).trim();  
-        const wsTimestamp = String(wsMessage.timestamp).trim();  
-        const msgThreadId = String(msg.thread_id).trim();  
-        const wsThreadId = String(wsMessage.thread_id).trim();  
-        // Trouver le message correspondant en utilisant le timestamp et le thread_id  
-        return msgTimestamp === wsTimestamp && msgThreadId === wsThreadId;  
-      });  
+        // Créer un message avec le fichier    
+        const message: Message = {    
+          timestamp: String(wsMessage.timestamp!).trim(),    
+          thread_id: String(wsMessage.thread_id!).trim(),    
+          role: wsMessage.role?.toLowerCase() || 'assistant', // ou 'user' selon le cas    
+          content: '', // Pas de contenu textuel, juste le fichier    
+          is_internal: wsMessage.is_internal || false,    
+          reactions: [],    
+          username: wsMessage.user_name || 'User',    
+          file: file,    
+          message_type: 'file' // **Ajout de message_type**    
+        };    
     
-      if (message && reactionName) {  
-        const emoji = this.getEmojiByName(reactionName) || reactionName;  
-        if (wsMessage.update === 'reaction_add') {  
-          if (!message.reactions.includes(emoji)) {  
-            message.reactions.push(emoji);  
-          }  
-        } else if (wsMessage.update === 'reaction_remove') {  
-          const index = message.reactions.indexOf(emoji);  
-          if (index !== -1) {  
-            message.reactions.splice(index, 1);  
-          }  
-        }  
-      } else {  
-        console.warn('Message not found for reaction update.');  
-        this.pendingReactions.push(wsMessage);  
-      }  
-      // Ne pas appeler scrollToBottom() ici pour éviter de perturber le défilement de l'utilisateur  
-      return;  // Sortir de la fonction après avoir traité les réactions  
-    }  
+        this.messages.push(message);    
+      });    
     
-    // Gérer les uploads de fichiers      
-    else if (wsMessage.event_type === 'FILE_UPLOAD' && wsMessage.files_content?.length) {      
-      console.log('Processing FILE_UPLOAD message:', wsMessage);  
-    
-      // Parcourir les fichiers reçus  
-      wsMessage.files_content.forEach((fileContent) => {  
-        const file: FileAttachment = {  
-          filename: fileContent.filename,  
-          title: fileContent.title || fileContent.filename,  
-          content: fileContent.file_content,  
-          isExpanded: false,  
-          blobUrl: ''  
-        };  
-    
-        // Créer un message avec le fichier  
-        const message: Message = {  
-          timestamp: String(wsMessage.timestamp!).trim(),  
-          thread_id: String(wsMessage.thread_id!).trim(),  
-          role: wsMessage.role?.toLowerCase() || 'assistant', // ou 'user' selon le cas  
-          content: '', // Pas de contenu textuel, juste le fichier  
-          is_internal: wsMessage.is_internal || false,  
-          reactions: [],  
-          username: wsMessage.user_name || 'User',  
-          file: file  
-        };  
-    
-        this.messages.push(message);  
-      });  
-    
-      // Définir shouldScrollToBottom sur true pour défiler vers le bas  
-      this.shouldScrollToBottom = true;  
-    
-      return;  // Sortir de la fonction après avoir traité le fichier    
-    }      
-    
-    // Gérer les messages normaux      
-    else if (wsMessage.event_type === 'MESSAGE' || wsMessage.event_type === 'MESSAGE_UPDATE') {      
-      console.log(`==> Processing normal message: ${wsMessage.event_type}`);      
-          
-      const role = wsMessage.role?.toLowerCase() || 'assistant';      
-      const username = role === 'user' ? 'User' : 'Remote Bot'; // Définir des noms personnalisés      
-          
-      const message: Message = {      
-        timestamp: String(wsMessage.timestamp!).trim(),      
-        thread_id: String(wsMessage.thread_id!).trim(),      
-        role,      
-        content: this.emojiService.convert(this.parseEmojis(this.processMentions(wsMessage.content || wsMessage.text || ''))),      
-        is_internal: wsMessage.is_internal || false,      
-        reactions: [],      
-        username      
-      };      
-          
-      console.log('Added message:', message);      
-      this.messages.push(message);      
-          
-      if (message.role === 'user' && !message.is_internal) {      
-        this.lastUserMessageTimestamp = message.timestamp;      
-        this.processPendingReactions(message);      
-      }      
-    
-      // Définir shouldScrollToBottom sur true pour défiler vers le bas  
+      // Définir shouldScrollToBottom sur true pour défiler vers le bas    
       this.shouldScrollToBottom = true;    
     
-      return;  // Sortir de la fonction après avoir traité le message    
-    }      
-    
+      return; // Sortir de la fonction après avoir traité le fichier    
+    }    
+      
+    // Gérer les messages normaux    
+    if (wsMessage.event_type === 'MESSAGE' || wsMessage.event_type === 'MESSAGE_UPDATE') {    
+      const role = wsMessage.role?.toLowerCase() || 'assistant';    
+      const username = role === 'user' ? 'User' : 'Remote Bot';    
+      
+      let content = wsMessage.content || wsMessage.text || '';    
+      let imageUrl: string | null = null;    
+      let parsedContent: any = null;    
+        
+      if (this.isJsonString(content)) {    
+        try {    
+          parsedContent = JSON.parse(content);    
+          imageUrl = this.extractImageUrlFromJson(parsedContent);    
+          content = this.extractTextFromJson(parsedContent);  
+          console.log('Extracted content from JSON:', content);  
+          console.log('Extracted imageUrl from JSON:', imageUrl);  
+        } catch (e) {    
+          console.error('Erreur lors du parsing du contenu JSON:', e);    
+          parsedContent = null;    
+        }    
+      } else {    
+        imageUrl = this.extractImageUrl(content);    
+      }    
+        
+      const messageType = wsMessage.message_type || 'TEXT';    
+        
+      const message: Message = {    
+        timestamp: String(wsMessage.timestamp!).trim(),    
+        thread_id: String(wsMessage.thread_id!).trim(),    
+        role: role,    
+        content: this.emojiService.convert(    
+          this.parseEmojis(this.processMentions(content))    
+        ),    
+        is_internal: wsMessage.is_internal || false,    
+        reactions: [],    
+        username: wsMessage.user_name || username,    
+        imageUrl: imageUrl,    
+        message_type: messageType,    
+        title: wsMessage.title || ''    
+      };    
+        
+      console.log('Added message:', message);    
+      this.messages.push(message);    
+      
+      if (message.role === 'user' && !message.is_internal) {    
+        this.lastUserMessageTimestamp = message.timestamp;    
+        this.processPendingReactions(message);    
+      }    
+      
+      // Définir shouldScrollToBottom sur true pour défiler vers le bas    
+      this.shouldScrollToBottom = true;    
+      
+      return; // Sortir de la fonction après avoir traité le message    
+    }    
+      
     // Gérer d'autres types d'événements si nécessaire    
     else {    
       // Traitez les autres types d'événements ici    
       console.warn(`Unhandled event type: ${wsMessage.event_type}`);    
     }    
+  }    
+  
+  public deserializeContent(content: string): string {  
+    try {  
+      let previousContent = '';  
+      while (content !== previousContent) {  
+        previousContent = content;  
+        content = content.replace(/\\\\/g, '\\');  
+        content = content.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"');  
+    
+        if (this.isJsonString(content)) {  
+          content = JSON.parse(content);  
+          if (typeof content === 'object') {  
+            content = JSON.stringify(content, null, 2);  
+          }  
+        }  
+      }  
+    
+      return content;  
+    
+    } catch (e) {  
+      console.error('Erreur lors de la désérialisation du contenu:', e);  
+      return content;  
+    }  
   }  
   
+  private isJsonString(str: string): boolean {  
+    try {  
+      JSON.parse(str);  
+      return true;  
+    } catch (e) {  
+      return false;  
+    }  
+  }  
+  
+  private extractImageUrlFromJson(jsonContent: any): string | null {  
+    if (!jsonContent) return null;  
+    
+    // Parcourir le JSON pour trouver l'URL de l'image  
+    // Cela dépend de la structure exacte de votre JSON  
+    // Exemple basé sur la structure fournie :  
+    
+    try {  
+      const responses = jsonContent.response;  
+      if (Array.isArray(responses)) {  
+        for (const responseItem of responses) {  
+          if (responseItem.Action && responseItem.Action.ActionName === 'GenerateImage') {  
+            const parameters = responseItem.Action.Parameters;  
+            if (parameters && parameters.ImageUrl) {  
+              return parameters.ImageUrl; // Retourner l'URL de l'image  
+            }  
+          }  
+        }  
+      }  
+    } catch (e) {  
+      console.error('Erreur lors de l\'extraction de l\'URL de l\'image du JSON:', e);  
+    }  
+    return null; // Si l'URL n'est pas trouvée  
+  }  
+  
+  decodeUnicode(input: string): string {  
+    return input.replace(/\\u[\dA-Fa-f]{4}/gi, function (match) {  
+      return String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16));  
+    });  
+  }  
+
+  private extractTextFromJson(jsonContent: any): string {  
+    if (!jsonContent) return '';  
+    
+    // Extraire le texte pertinent du JSON  
+    // Par exemple, vous pouvez extraire les observations ou pensées  
+    
+    try {  
+      const responses = jsonContent.response;  
+      if (Array.isArray(responses)) {  
+        for (const responseItem of responses) {  
+          if (responseItem.Action && responseItem.Action.ActionName === 'ObservationThought') {  
+            const parameters = responseItem.Action.Parameters;  
+            if (parameters && parameters.observation) {  
+              return parameters.observation;  
+            }  
+          }  
+        }  
+      }  
+    } catch (e) {  
+      console.error('Erreur lors de l\'extraction du texte du JSON:', e);  
+    }  
+    return ''; // Si aucun texte n'est trouvé  
+  }  
+  
+  public extractImageUrl(content: string): string | null {  
+    const urlPattern = /(https?:\/\/[^\s]+)/g;  
+    let match;  
+    while ((match = urlPattern.exec(content)) !== null) {  
+      const urlWithPossibleSuffix = match[0];  
+      const cleanedUrl = this.cleanUrl(urlWithPossibleSuffix);  
+      if (this.isImageUrl(cleanedUrl)) {  
+        return cleanedUrl;  
+      }  
+    }  
+    return null;  
+  }
+
+  private createBlobUrl(file: FileAttachment): void {  
+    try {  
+      // Vérifier si le contenu est en Base64  
+      let binaryContent: Uint8Array;  
+      if (this.isBase64(file.content)) {  
+        const decodedData = atob(file.content);  
+        binaryContent = new Uint8Array(decodedData.length);  
+        for (let i = 0; i < decodedData.length; i++) {  
+          binaryContent[i] = decodedData.charCodeAt(i);  
+        }  
+      } else {  
+        // Si le contenu est du texte brut  
+        binaryContent = new TextEncoder().encode(file.content);  
+      }  
+    
+      // Déterminer le type MIME du fichier  
+      const mimeType = this.getFileMimeType(file.filename);  
+    
+      // Créer le Blob  
+      const blob = new Blob([binaryContent], { type: mimeType });  
+    
+      // Générer l'URL  
+      file.blobUrl = URL.createObjectURL(blob);  
+    } catch (e) {  
+      console.error('Erreur lors de la création de la Blob URL:', e);  
+    }  
+  }  
+  
+  private isBase64(str: string): boolean {  
+    try {  
+      return btoa(atob(str)) === str;  
+    } catch (err) {  
+      return false;  
+    }  
+  }  
+
   processPendingReactions(message: Message): void {  
     this.pendingReactions.forEach((wsMessage) => {  
       const reactionName = wsMessage.reaction_name || '';  
@@ -776,7 +992,8 @@ export class ChatComponent implements OnInit, AfterViewInit {
       is_internal: false,
       reactions: [],
       username: 'System',
-      thread_id: this.threadId
+      thread_id: this.threadId,
+      message_type: 'COMMENT',
     };
     this.messages.push(systemMessage);
 
@@ -830,6 +1047,44 @@ export class ChatComponent implements OnInit, AfterViewInit {
 
   toggleInternalMessages(): void {
     this.showInternalMessages = !this.showInternalMessages;
+  }  
+
+  // Méthode pour vérifier si une URL pointe vers une image  
+  public isImageUrl(url: string): boolean {  
+    if (!url) return false;  
+    // Nettoyer l'URL  
+    const cleanedUrl = this.cleanUrl(url.toLowerCase());  
+    // Extraire la partie du chemin sans les paramètres de requête et les fragments  
+    const urlWithoutParams = cleanedUrl.split('?')[0].split('#')[0];  
+    // Extraire l'extension du fichier  
+    const extension = urlWithoutParams.split('.').pop();  
+    // Vérifier si l'extension correspond à une image  
+    return ['jpeg', 'jpg', 'gif', 'png', 'svg', 'bmp', 'webp'].includes(extension || '');  
+  }  
+  
+  public getSafeImageUrl(url: string): SafeUrl {  
+    return this.sanitizer.bypassSecurityTrustUrl(url);  
+  }  
+  
+
+  public cleanUrl(url: string): string {  
+    if (!url) return '';  
+    // Supprimer '|Image' s'il est présent  
+    return url.replace(/\|Image$/, '');  
+  }  
+
+  // Méthode pour traiter le contenu du message et détecter les URLs  
+  private processMessageContent(content: string): string {  
+    const urlRegex = /(https?:\/\/[^\s]+)/g;  
+    return content.replace(urlRegex, (url) => {  
+      if (this.isImageUrl(url)) {  
+        // Remplacer l'URL de l'image par une balise d'image en HTML  
+        return `<img src="${url}" alt="Image" />`;  
+      } else {  
+        // Laisser les autres URLs inchangées ou les transformer en liens cliquables  
+        return `<a href="${url}" target="_blank">${url}</a>`;  
+      }  
+    });  
   }  
 }
 

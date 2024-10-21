@@ -199,7 +199,7 @@ async def receive_message(request: Request):
         reaction_name = message_data.get("reaction_name", "")
         is_internal = message_data.get("is_internal", False)
         files_content = message_data.get("files_content", [])
-
+        message_type = message_data.get("message_type", "text")
         logger.info(f"Received message on /api/receive_message: {event_type} reaction name: {reaction_name}")
         message_counter += 1
 
@@ -216,6 +216,7 @@ async def receive_message(request: Request):
                 "reactions": [],
                 "timestamp": timestamp,
                 "thread_id": thread_id,
+                "message_type": message_type,
                 "event_type": "MESSAGE"  # Ensure event_type is explicitly set here
             }
             conversation_history.append(assistant_message)
@@ -418,6 +419,8 @@ async def delete_subprompt(prompt_name: str = Query(...)):
         return {'status': 'Subprompt deleted successfully'}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host=BACKEND_HOST, port=BACKEND_PORT, reload=True)

@@ -1,0 +1,107 @@
+/* app.component.css */  
+  
+/* Main Container using CSS Grid */  
+.main-container {  
+    display: grid;  
+    grid-template-columns: auto 5px 1fr; /* Designer panel, splitter, chat container */  
+    grid-template-rows: calc(100vh - 64px); /* Ajuster selon la hauteur de la toolbar */  
+    overflow: hidden;  
+    min-height: 0;  
+  }  
+    
+  /* Ajustement lorsque le designer est caché */  
+  .main-container.no-designer {  
+    grid-template-columns: 1fr;  
+    justify-items: center; /* Centrer le contenu horizontalement */  
+  }  
+    
+  /* Designer panel styles */  
+  .designer-panel {  
+    display: grid;  
+    grid-template-rows: auto 1fr;  
+    height: 100%;  
+    background-color: #ffffff;  
+    border-right: 1px solid #ddd;  
+    overflow: hidden;  
+  }  
+    
+  .designer-panel > h3 {  
+    margin: 0;  
+    padding: 16px;  
+    background-color: #f5f5f5;  
+    border-bottom: 1px solid #ddd;  
+  }  
+    
+  /* Splitter styles */  
+  .splitter {  
+    grid-column: 2 / 3;  
+    grid-row: 1 / 2;  
+    width: 5px;  
+    background-color: #ddd;  
+    cursor: col-resize;  
+  }  
+    
+  .splitter:hover {  
+    background-color: #aaa;  
+  }  
+    
+  /* Chat container styles */  
+  .chat-container {  
+    grid-column: 3 / 4;  
+    grid-row: 1 / 2;  
+    display: flex;  
+    flex-direction: column;  
+    background-color: #f5f7fa;  
+    overflow: hidden;  
+    min-width: 500px;  
+  }  
+    
+  /* Centrer le chat lorsque le designer est masqué */  
+  .main-container.no-designer .chat-container {  
+    grid-column: 1 / -1;  
+    width: 100%;  
+    max-width: 1000px;  
+    margin: 0 auto;  
+  }  
+    
+  /* Toolbar styling */  
+  .mat-toolbar {  
+    background-color: #3b3e47;  
+    color: #ffffff;  
+    font-size: 1.1rem;  
+    font-family: 'Montserrat', sans-serif;  
+    box-shadow: none;  
+  }  
+    
+  .mat-toolbar .spacer {  
+    flex: 1 1 auto;  
+  }  
+    
+  .mat-toolbar button[mat-button] {  
+    color: #ffffff !important;  
+    font-weight: normal;  
+  }  
+    
+  .mat-toolbar button[mat-button].active {  
+    font-weight: bold;  
+  }  
+    
+  .mat-toolbar button[mat-button]:hover {  
+    background-color: #5e6373 !important;  
+  }  
+    
+  .mat-toolbar button[mat-button]:focus,  
+  .mat-toolbar button[mat-button]:active {  
+    background-color: #2e3137 !important;  
+    color: #ffffff !important;  
+  }  
+    
+  button.active {  
+    background-color: #2e3137 !important;  
+    color: #ffffff !important;  
+  }  
+    
+  .mat-toolbar .mat-icon {  
+    color: #ffffff;  
+  }  
+  
