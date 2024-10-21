@@ -48,11 +48,11 @@
   
             <!-- If the message contains an image URL, display the image -->  
             <img  
-              *ngIf="message.imageUrl && isImageUrl(message.imageUrl)"  
-              [src]="message.imageUrl"  
-              alt="Image message"  
+              *ngIf="message.imageUrl"  
+              [src]="getSafeImageUrl(message.imageUrl)"  
+              alt="Image"  
               style="max-width: 200px; margin-top: 10px;"  
-            />  
+            />   
           </ng-container>  
   
           <!-- Type: CODEBLOCK -->  
@@ -67,12 +67,12 @@
           <ng-container *ngIf="message.message_type === 'file' && message.file">  
             <div class="file-content">  
               <!-- If the file is an image, display it -->  
-              <img  
-                *ngIf="isImageFile(message.file.filename)"  
-                [src]="fileToUrl(message.file)"  
-                alt="{{ message.file.title }}"  
-                style="max-width: 200px;"  
-              />  
+              <img    
+                *ngIf="isImageFile(message.file.filename)"    
+                [src]="fileToUrl(message.file)"    
+                alt="{{ message.file.title }}"    
+                style="max-width: 200px;"    
+              />   
   
               <!-- Otherwise, display file info with options -->  
               <div *ngIf="!isImageFile(message.file.filename)">  
@@ -92,7 +92,7 @@
                 <pre class="file-preview" *ngIf="!message.file.isExpanded">  
                   {{ sanitizeFileContent(getFilePreview(message.file.content)) }}  
                 </pre>  
-                <!-- Full content with sanitization when expanded -->  
+                <!-- Contenu complet -->  
                 <pre class="file-full-content dark-theme" *ngIf="message.file.isExpanded">  
                   {{ sanitizeFileContent(message.file.content) }}  
                 </pre>  
