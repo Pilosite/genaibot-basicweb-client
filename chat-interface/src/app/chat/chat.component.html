@@ -230,28 +230,26 @@
   
             <!-- Otherwise, show the file name with a preview and download link -->  
             <div *ngIf="!isImageFile(message.file.filename)">  
-              <strong>File: {{ message.file.title }}</strong>  
-  
+              <div class="file-header">  
+                <strong>File: {{ message.file.title }}</strong>  
+                <!-- Expand/collapse button -->  
+                <button  
+                  mat-raised-button  
+                  color="accent"  
+                  *ngIf="shouldShowExpandButton(message.file.content)"  
+                  (click)="toggleFileExpand(message.file)"  
+                >  
+                  {{ message.file.isExpanded ? 'Collapse' : 'Expand' }}  
+                </button>  
+              </div>  
               <!-- Show a preview of the content with sanitization -->  
               <pre class="file-preview" *ngIf="!message.file.isExpanded">  
                 {{ sanitizeFileContent(getFilePreview(message.file.content)) }}  
               </pre>  
-  
-              <!-- Expand/collapse button -->  
-              <button  
-                mat-raised-button  
-                color="accent"  
-                *ngIf="shouldShowExpandButton(message.file.content)"  
-                (click)="toggleFileExpand(message.file)"  
-              >  
-                {{ message.file.isExpanded ? 'Collapse' : 'Expand' }}  
-              </button>  
-  
               <!-- Full content with sanitization and custom styling if expanded -->  
               <pre class="file-full-content dark-theme" *ngIf="message.file.isExpanded">  
                 {{ sanitizeFileContent(message.file.content) }}  
               </pre>  
-  
               <!-- Download link -->  
               <a  
                 mat-button  
@@ -262,6 +260,7 @@
                 Download  
               </a>  
             </div>  
+            
           </div>  
         </div>  
       </div>  

@@ -237,7 +237,7 @@ button.active {
   
 /* Message list styling */  
 .message-list {  
-  flex: 1;  
+  flex: 1 1 auto; 
   overflow-y: auto;  
   padding: 4px 10px;  
   max-width: 100%;  
@@ -311,7 +311,14 @@ button.active {
   border-radius: 0px;  
   max-width: none !important;  
 }  
-  
+
+.file-header {  
+  display: flex;  
+  justify-content: space-between;  
+  align-items: center;  
+  margin-bottom: 8px; /* Ajustez la marge si nécessaire */  
+}  
+
 .message-content {  
   padding: 6px 8px;  
   border-radius: 12px;  
