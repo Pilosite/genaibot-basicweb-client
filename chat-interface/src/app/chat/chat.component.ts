@@ -1,4 +1,4 @@
-import { Component, OnInit, NgZone, ChangeDetectorRef } from '@angular/core';    
+import { Component, OnInit, NgZone, ChangeDetectorRef, HostListener, ElementRef, ViewChild, AfterViewInit } from '@angular/core';   
 import { FormsModule } from '@angular/forms';    
 import { CommonModule } from '@angular/common';    
 import { MarkdownModule } from 'ngx-markdown';    
@@ -12,26 +12,36 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';    
 import { MatFormFieldModule } from '@angular/material/form-field';    
 import { MatInputModule } from '@angular/material/input';    
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTabChangeEvent } from '@angular/material/tabs';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatSelect, MatSelectModule, MatOption } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
 import hljs from 'highlight.js';  
 import { EmojiService } from '../services/emoji.service';
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 
+import { Subject } from 'rxjs';  
+import { filter, share } from 'rxjs/operators';  
+
 // Définition de l'interface WSMessage    
-interface WSMessage {
-  id?: number;
-  role?: string;
-  content?: string;
-  text?: string;
-  is_internal?: boolean;
-  reactions?: string[];
-  update?: string;
-  reaction_name?: string;
-  user_name?: string;
-  timestamp?: string;
-  thread_id?: string;
-  files_content?: { file_content: string, filename: string, title: string }[]; // Add files_content for file upload
-  event_type?: string; // Add event_type to distinguish message types
-}
+interface WSMessage {  
+  id?: number;  
+  role?: string;  
+  content?: string;  
+  text?: string;  
+  is_internal?: boolean;  
+  reactions?: string[];  
+  update?: string;  
+  reaction_name?: string;  
+  user_name?: string;  
+  timestamp?: string;  
+  thread_id?: string;  
+  files_content?: { file_content: string, filename: string, title: string }[]; // For file uploads  
+  event_type?: string; // To distinguish message types  
+  error?: string; // Add this line for the error property  
+}  
 
 interface Message {
   timestamp: string;
@@ -60,17 +70,21 @@ interface FileAttachment {
   imports: [    
     CommonModule,    
     FormsModule,    
-    MarkdownModule, // Import sans forRoot()    
-    // Modules Angular Material    
+    MarkdownModule, // Import sans forRoot()        
+    MatTabsModule,
     MatToolbarModule,    
     MatIconModule,    
-    MatButtonModule,    
+    MatButtonModule,
     MatFormFieldModule,    
-    MatInputModule,    
+    MatInputModule,
+    MatSelect,
+    MatOption,
+    MatProgressSpinnerModule,
+    MatSnackBarModule
   ],    
 })
 
-export class ChatComponent implements OnInit {    
+export class ChatComponent implements OnInit, AfterViewInit {    
   messages: Message[] = [];    
   userInput: string = '';    
   showInternalMessages: boolean = false;
@@ -85,22 +99,52 @@ export class ChatComponent implements OnInit {
   userStoppedWaiting: boolean = false;  
   latestUserTimestamp: string = ''; 
   stopProcessingMessages: boolean = false;
+
+  selectedTabIndex: number = 0;
+  promptContent: string = '';
+  loadingPrompt: boolean = false;
+
+  showDesignerPanel: boolean = false; // State to show/hide the designer panel
+  designerWidth: number = window.innerWidth / 2; 
+  designerMinWidth: number = 200; // Largeur minimale du panneau du concepteur  
   
+  chatMinWidth: number = 300; // Largeur minimale du chat  
+  splitterWidth: number = 5; // Largeur du splitter    
+  designerMaxWidth: number = window.innerWidth - this.chatMinWidth - this.splitterWidth;  
+  isSplitterDragging: boolean = false; // Indique si l'utilisateur est en train de faire glisser le splitter  
+  // Subprompts management
+  availableSubprompts: string[] = [];
+  selectedSubprompt: string = '';
+  
+  shouldScrollToBottom: boolean = false;
+
+  private isNearBottom = true;
+  @ViewChild('messageList') private messageListContainer!: ElementRef;
+
   constructor(
     private http: HttpClient,
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
-    private emojiService: EmojiService // Ajoutez le service ici
-  ) {}
-  
-  
-  ngAfterViewChecked() {
-    const codeBlocks = document.querySelectorAll('pre code');
-    codeBlocks.forEach((block) => {
-      hljs.highlightBlock(block as HTMLElement);  // Apply highlight.js to code blocks
-    });
-    this.scrollToBottom();
+    private emojiService: EmojiService,
+    private snackBar: MatSnackBar    
+  ) {
+    this.showInternalMessages = true;
   }
+  
+  
+  ngAfterViewChecked() {    
+    const codeBlocks = document.querySelectorAll('pre code');    
+    codeBlocks.forEach((block) => {    
+      hljs.highlightBlock(block as HTMLElement);  // Appliquer highlight.js aux blocs de code    
+    });    
+    
+    if (this.shouldScrollToBottom) {  
+      setTimeout(() => {  
+        this.scrollToBottom();    
+        this.shouldScrollToBottom = false;  // Réinitialiser le drapeau  
+      }, 0); // Retard minimal  
+    }  
+  }  
   
   ngOnInit(): void {    
     // Générer un threadId au démarrage  
@@ -113,16 +157,216 @@ export class ChatComponent implements OnInit {
       error: (err) => console.error('WebSocket error:', err),    
       complete: () => console.warn('WebSocket connection closed'),    
     });    
-  }    
+    this.loadAvailableSubprompts();
+  }
 
-  ngOnDestroy(): void {
-    this.messages.forEach((message) => {
-      if (message.file?.blobUrl) {
-        URL.revokeObjectURL(message.file.blobUrl);
+  ngAfterViewInit(): void {  
+    // Initialiser l'état initial de isNearBottom  
+    this.onScroll();  
+  }  
+
+  onTabChange(event: MatTabChangeEvent): void {
+    this.selectedTabIndex = event.index;
+    if (event.index === 0) {
+      // Core Prompt
+      this.loadPrompt('core', null);
+    } else if (event.index === 1) {
+      // Main Prompt
+      this.loadPrompt('main', null);
+    } else if (event.index === 2) {
+      // Subprompts
+      if (this.selectedSubprompt) {
+        this.loadPrompt('subprompt', this.selectedSubprompt);
       }
+    }
+  }
+
+  ngOnDestroy(): void {  
+    // Votre code existant...  
+    
+    // Libérer les écouteurs d'événements si nécessaire  
+    if (this.isSplitterDragging) {  
+      document.removeEventListener('mousemove', this.onSplitterMouseMove.bind(this));  
+      document.removeEventListener('mouseup', this.onSplitterMouseUp.bind(this));  
+    }  
+    
+    // Libérer les URL de blob des fichiers  
+    this.messages.forEach((message) => {  
+      if (message.file?.blobUrl) {  
+        URL.revokeObjectURL(message.file.blobUrl);  
+      }  
+    });  
+  }
+
+  @HostListener('window:resize', ['$event'])  
+  onWindowResize(event: Event) {  
+    if (this.showDesignerPanel) {  
+      this.designerWidth = window.innerWidth / 2;  
+    }  
+    // Mettre à jour designerMaxWidth en fonction de la nouvelle largeur de la fenêtre  
+    this.designerMaxWidth = window.innerWidth - this.chatMinWidth - this.splitterWidth;  
+  }  
+
+  // Toggle the designer panel
+  toggleDesignerPanel(): void {
+    this.showDesignerPanel = !this.showDesignerPanel;
+  
+    if (this.showDesignerPanel) {
+      // Load the prompt corresponding to the selected tab
+      if (this.selectedTabIndex === 0) {
+        // Core Prompt
+        this.loadPrompt('core', null);
+      } else if (this.selectedTabIndex === 1) {
+        // Main Prompt
+        this.loadPrompt('main', null);
+      } else if (this.selectedTabIndex === 2) {
+        // Subprompt
+        if (this.selectedSubprompt) {
+          this.loadPrompt('subprompt', this.selectedSubprompt);
+        } else {
+          // Handle the case where no subprompt is selected
+          this.promptContent = '';
+        }
+      }
+    }
+  }
+
+  onSplitterMouseDown(event: MouseEvent): void {  
+    this.isSplitterDragging = true;  
+    document.addEventListener('mousemove', this.onSplitterMouseMove.bind(this));  
+    document.addEventListener('mouseup', this.onSplitterMouseUp.bind(this));  
+  }  
+  
+  onSplitterMouseMove(event: MouseEvent): void {  
+    if (!this.isSplitterDragging) {  
+      return;  
+    }  
+    
+    const containerOffsetLeft = (document.querySelector('.main-container') as HTMLElement).getBoundingClientRect().left;  
+    const newWidth = event.clientX - containerOffsetLeft;  
+    
+    if (newWidth >= this.designerMinWidth && newWidth <= this.designerMaxWidth) {  
+      this.designerWidth = newWidth;  
+    }  
+  }  
+  
+  onSplitterMouseUp(event: MouseEvent): void {  
+    this.isSplitterDragging = false;  
+    document.removeEventListener('mousemove', this.onSplitterMouseMove.bind(this));  
+    document.removeEventListener('mouseup', this.onSplitterMouseUp.bind(this));  
+  }  
+  
+  // Load the prompt from the backend or a file
+  loadPrompt(promptType: string, promptName: string | null): void {
+    this.loadingPrompt = true;
+  
+    // Construct params object
+    const params: { [param: string]: string } = {
+      prompt_type: promptType,
+      // Include prompt_name only if it's not null
+      ...(promptName !== null && { prompt_name: promptName }),
+    };
+  
+    this.http.get<{ prompt: string }>(`${environment.apiUrl}/api/prompt`, { params }).subscribe({
+      next: (response) => {
+        this.promptContent = response.prompt;
+        this.loadingPrompt = false;
+      },
+      error: (error) => {
+        console.error('Error loading prompt:', error);
+        this.loadingPrompt = false;
+      },
     });
   }
   
+  onScroll(): void {    
+    const threshold = 150; // Distance en pixels pour considérer que l'utilisateur est en bas    
+    const position = this.messageListContainer.nativeElement.scrollTop + this.messageListContainer.nativeElement.offsetHeight;    
+    const height = this.messageListContainer.nativeElement.scrollHeight;    
+    this.isNearBottom = position > height - threshold;
+  }  
+
+  // Save the updated prompt back to the backend or file
+  savePrompt(): void {
+    this.loadingPrompt = true;
+    const promptType = this.selectedTabIndex === 0 ? 'core' : this.selectedTabIndex === 1 ? 'main' : 'subprompt';
+    const promptName = this.selectedTabIndex === 2 ? this.selectedSubprompt : null;
+
+    const payload = {
+      prompt_type: promptType,
+      prompt_name: promptName,
+      prompt_content: this.promptContent,
+    };
+
+    this.http.post(`${environment.apiUrl}/api/save-prompt`, payload).subscribe({
+      next: (response: any) => {
+        console.log('Prompt saved successfully:', response);
+        this.loadingPrompt = false;
+      },
+      error: (error) => {
+        console.error('Error saving prompt:', error);
+        this.loadingPrompt = false;
+      },
+    });
+  }
+
+  loadAvailableSubprompts(): void {
+    this.http.get<{ prompts: string[] }>(`${environment.apiUrl}/api/subprompts`).subscribe({
+      next: (response) => {
+        this.availableSubprompts = response.prompts;
+        if (this.availableSubprompts.length > 0) {
+          this.selectedSubprompt = this.availableSubprompts[0];
+          if (this.selectedTabIndex === 2) {
+            this.loadPrompt('subprompt', this.selectedSubprompt);
+          }
+        }
+      },
+      error: (error) => {
+        console.error('Error loading subprompts:', error);
+      },
+    });
+  }
+  
+  onSubpromptSelectionChange(promptName: string): void {
+    this.selectedSubprompt = promptName;
+    this.loadPrompt('subprompt', promptName);
+  }
+
+  createSubprompt(): void {
+    const newPromptName = prompt('Enter a name for the new subprompt:');
+    if (newPromptName) {
+      this.http
+        .post(`${environment.apiUrl}/api/create-subprompt`, null, { params: { prompt_name: newPromptName } })
+        .subscribe({
+          next: (response: any) => {
+            console.log('Subprompt created successfully:', response);
+            this.loadAvailableSubprompts();
+          },
+          error: (error) => {
+            console.error('Error creating subprompt:', error);
+          },
+        });
+    }
+  }
+
+  deleteSubprompt(): void {
+    if (confirm(`Are you sure you want to delete the subprompt "${this.selectedSubprompt}"?`)) {
+      this.http
+        .delete(`${environment.apiUrl}/api/delete-subprompt`, { params: { prompt_name: this.selectedSubprompt } })
+        .subscribe({
+          next: (response: any) => {
+            console.log('Subprompt deleted successfully:', response);
+            this.selectedSubprompt = '';
+            this.promptContent = '';
+            this.loadAvailableSubprompts();
+          },
+          error: (error) => {
+            console.error('Error deleting subprompt:', error);
+          },
+        });
+    }
+  }
+
   generateThreadId(): string {  
     const currentTimestamp = Date.now() / 1000; // Obtenir le timestamp en secondes  
     const threadId = currentTimestamp.toFixed(4); // Formater avec 4 chiffres après la virgule  
@@ -135,12 +379,34 @@ export class ChatComponent implements OnInit {
   }
 
   handleSocketMessage(wsMessage: WSMessage): void {  
-    if (this.stopProcessingMessages) {
-      console.log('Message processing stopped. Ignoring incoming message.');
-      return;
-    }
-    this.messageQueue.push(wsMessage);  
-    this.processQueue();  
+    // Handle error messages from the backend  
+    if (wsMessage.event_type === 'ERROR') {  
+      // Display the error message using MatSnackBar  
+      this.snackBar.open(wsMessage.error || 'An error occurred.', 'Close', {  
+          duration: 5000,  
+          panelClass: ['error-snackbar'],  
+          verticalPosition: 'top',  
+          horizontalPosition: 'center'  
+      });  
+
+      // Reset the waiting states  
+      this.isWaitingForResponse = false;  
+      this.userStoppedWaiting = false;  
+
+      // Reset any flags or variables related to message processing  
+      this.stopProcessingMessages = true; // To cancel processing any pending messages  
+
+      // Update the UI button state  
+      this.updateSendButtonState();  
+
+      return;  
+    }  
+
+    if (this.stopProcessingMessages) {  
+        console.log('Message processing stopped. Ignoring incoming message.');  
+        return;  
+    }  
+    this.processMessage(wsMessage);  
   }  
 
   formatTimestamp(timestamp: string): string {
@@ -157,16 +423,16 @@ export class ChatComponent implements OnInit {
 
   processQueue(): void {  
     if (this.isProcessingQueue || this.messageQueue.length === 0) {  
-      return;  
+        return;  
     }  
     this.isProcessingQueue = true;  
-
+  
     const wsMessage = this.messageQueue.shift()!;  
     this.processMessage(wsMessage);  
-
+  
     this.isProcessingQueue = false;  
     if (this.messageQueue.length > 0) {  
-      this.processQueue();  
+        this.processQueue();  
     }  
   }  
 
@@ -252,144 +518,141 @@ export class ChatComponent implements OnInit {
     return content.length > previewLimit ? content.substring(0, previewLimit) + '...' : content;
   }
 
-  processMessage(wsMessage: WSMessage): void {
-    // Check if the stop flag is set to prevent processing
-    if (this.stopProcessingMessages) {
-      console.log('Message processing is stopped. Ignoring incoming message.');
-      return;
-    }
-  
-    console.log('Processing WebSocket message:', wsMessage);
-    console.log(`Event Type: ${wsMessage.event_type}`);
-  
-    // Filter out messages that do not belong to the latest user message (based on timestamp)
-    if (wsMessage.timestamp !== this.latestUserTimestamp) {
-      console.log('Ignoring message from previous user input.');
-      return;  // Ignore message
-    }
-  
-    // Handle "done" reaction and re-enable the Send button
-    if (wsMessage.event_type === 'REACTION_UPDATE' && wsMessage.reaction_name === 'done') {
-      if (wsMessage.update === 'reaction_add') {
-        this.isWaitingForResponse = false;  // Reaction "done" received
-        this.userStoppedWaiting = false;    // Reset flag
-      }
-    }
-  
-    // Handle reaction updates
-    if (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove') {
-      console.log(`Processing reaction update:`, wsMessage);
-  
-      const reactionName = wsMessage.reaction_name || '';  // Use the reaction from wsMessage
-  
-      // Find the message with timestamp, thread_id, and role 'user'
-      const message = this.messages.find(msg => {
-        const msgTimestamp = String(msg.timestamp).trim();
-        const wsTimestamp = String(wsMessage.timestamp).trim();
-        const msgThreadId = String(msg.thread_id).trim();
-        const wsThreadId = String(wsMessage.thread_id).trim();
-        const msgRole = String(msg.role).trim().toLowerCase();
-  
-        return msgTimestamp === wsTimestamp && msgThreadId === wsThreadId && msgRole === 'user';
-      });
-  
-      if (message && reactionName) {
-        const emoji = this.getEmojiByName(reactionName) || reactionName;
-  
-        if (wsMessage.update === 'reaction_add') {
-          if (!message.reactions.includes(emoji)) {
-            message.reactions.push(emoji);
-          }
-        } else if (wsMessage.update === 'reaction_remove') {
-          const index = message.reactions.indexOf(emoji);
-          if (index !== -1) {
-            message.reactions.splice(index, 1);
-          }
-        }
-      } else {
-        console.warn('Message not found for reaction update.');
-        this.pendingReactions.push(wsMessage);
-      }
-    }
-  
-    // Handle file uploads
-    else if (wsMessage.event_type === 'FILE_UPLOAD' && wsMessage.files_content?.length) {
-      console.log(`==> Processing FILE_UPLOAD event: ${wsMessage.files_content.length} files uploaded.`);
-      console.log('File upload message received. Role:', wsMessage.role, 'Username:', wsMessage.user_name);
-      wsMessage.files_content.forEach(file => {
-        console.log('==> File details:', file);
-  
-        const role = wsMessage.role?.toLowerCase() || 'assistant';
-        const username = role === 'user' ? 'User' : 'Remote Bot'; // Set custom names for file upload
-  
-        const fileMessage: Message = {
-          timestamp: String(wsMessage.timestamp!).trim(),
-          thread_id: String(wsMessage.thread_id!).trim(),
-          role,
-          content: '',  // No text content, just the file
-          is_internal: wsMessage.is_internal || false,
-          reactions: [],
-          username
-        };
-  
-        // Add the file to the message as an object
-        fileMessage['file'] = {
-          filename: file.filename,
-          title: file.title,
-          content: file.file_content  // Assuming this is base64 encoded or a string
-        };
-  
-        console.log('==> Created file message:', fileMessage);
-        this.messages.push(fileMessage);
-      });
-  
-      this.scrollToBottom();  // Automatically scroll to the latest message
-    }
-  
-    // Handle normal messages
-    else {
-      console.log(`==> Processing normal message: ${wsMessage.event_type}`);
-  
-      const role = wsMessage.role?.toLowerCase() || 'assistant';
-      const username = role === 'user' ? 'User' : 'Remote Bot'; // Set custom names
-  
-      const message: Message = {
-        timestamp: String(wsMessage.timestamp!).trim(),
-        thread_id: String(wsMessage.thread_id!).trim(),
-        role,
-        content: this.emojiService.convert(this.parseEmojis(this.processMentions(wsMessage.content || wsMessage.text || ''))),
-        is_internal: wsMessage.is_internal || false,
-        reactions: [],
-        username
-      };
-  
-      console.log('Added message:', message);
-      this.messages.push(message);
-  
-      if (message.role === 'user' && !message.is_internal) {
-        this.lastUserMessageTimestamp = message.timestamp;
-        this.processPendingReactions(message);
-      }
-  
-      this.scrollToBottom();
-    }
-  }
-  
+  processMessage(wsMessage: WSMessage): void {  
+    // Vérifier si le traitement des messages est arrêté  
+    if (this.stopProcessingMessages) {  
+      console.log('Message processing is stopped. Ignoring incoming message.');  
+      return;  
+    }  
+    
+    console.log('Processing WebSocket message:', wsMessage);  
+    console.log(`Event Type: ${wsMessage.event_type}`);  
+    
+    // Gérer les mises à jour des réactions  
+    if (wsMessage.event_type === 'REACTION_UPDATE' && (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove')) {  
+      console.log('Processing reaction update:', wsMessage);  
+      const reactionName = wsMessage.reaction_name || '';  // Utiliser le nom de la réaction du wsMessage  
+    
+      // Si la réaction est "done", mettre à jour l'état  
+      if (reactionName === 'done' && wsMessage.update === 'reaction_add') {  
+        this.isWaitingForResponse = false;  // Réaction "done" reçue  
+        this.userStoppedWaiting = false;    // Réinitialiser le drapeau  
+      }  
+    
+      // Trouver le message auquel la réaction s'applique  
+      const message = this.messages.find(msg => {  
+        const msgTimestamp = String(msg.timestamp).trim();  
+        const wsTimestamp = String(wsMessage.timestamp).trim();  
+        const msgThreadId = String(msg.thread_id).trim();  
+        const wsThreadId = String(wsMessage.thread_id).trim();  
+        // Trouver le message correspondant en utilisant le timestamp et le thread_id  
+        return msgTimestamp === wsTimestamp && msgThreadId === wsThreadId;  
+      });  
+    
+      if (message && reactionName) {  
+        const emoji = this.getEmojiByName(reactionName) || reactionName;  
+        if (wsMessage.update === 'reaction_add') {  
+          if (!message.reactions.includes(emoji)) {  
+            message.reactions.push(emoji);  
+          }  
+        } else if (wsMessage.update === 'reaction_remove') {  
+          const index = message.reactions.indexOf(emoji);  
+          if (index !== -1) {  
+            message.reactions.splice(index, 1);  
+          }  
+        }  
+      } else {  
+        console.warn('Message not found for reaction update.');  
+        this.pendingReactions.push(wsMessage);  
+      }  
+      // Ne pas appeler scrollToBottom() ici pour éviter de perturber le défilement de l'utilisateur  
+      return;  // Sortir de la fonction après avoir traité les réactions  
+    }  
+    
+    // Gérer les uploads de fichiers      
+    else if (wsMessage.event_type === 'FILE_UPLOAD' && wsMessage.files_content?.length) {      
+      console.log('Processing FILE_UPLOAD message:', wsMessage);  
+    
+      // Parcourir les fichiers reçus  
+      wsMessage.files_content.forEach((fileContent) => {  
+        const file: FileAttachment = {  
+          filename: fileContent.filename,  
+          title: fileContent.title || fileContent.filename,  
+          content: fileContent.file_content,  
+          isExpanded: false,  
+          blobUrl: ''  
+        };  
+    
+        // Créer un message avec le fichier  
+        const message: Message = {  
+          timestamp: String(wsMessage.timestamp!).trim(),  
+          thread_id: String(wsMessage.thread_id!).trim(),  
+          role: wsMessage.role?.toLowerCase() || 'assistant', // ou 'user' selon le cas  
+          content: '', // Pas de contenu textuel, juste le fichier  
+          is_internal: wsMessage.is_internal || false,  
+          reactions: [],  
+          username: wsMessage.user_name || 'User',  
+          file: file  
+        };  
+    
+        this.messages.push(message);  
+      });  
+    
+      // Définir shouldScrollToBottom sur true pour défiler vers le bas  
+      this.shouldScrollToBottom = true;  
+    
+      return;  // Sortir de la fonction après avoir traité le fichier    
+    }      
+    
+    // Gérer les messages normaux      
+    else if (wsMessage.event_type === 'MESSAGE' || wsMessage.event_type === 'MESSAGE_UPDATE') {      
+      console.log(`==> Processing normal message: ${wsMessage.event_type}`);      
+          
+      const role = wsMessage.role?.toLowerCase() || 'assistant';      
+      const username = role === 'user' ? 'User' : 'Remote Bot'; // Définir des noms personnalisés      
+          
+      const message: Message = {      
+        timestamp: String(wsMessage.timestamp!).trim(),      
+        thread_id: String(wsMessage.thread_id!).trim(),      
+        role,      
+        content: this.emojiService.convert(this.parseEmojis(this.processMentions(wsMessage.content || wsMessage.text || ''))),      
+        is_internal: wsMessage.is_internal || false,      
+        reactions: [],      
+        username      
+      };      
+          
+      console.log('Added message:', message);      
+      this.messages.push(message);      
+          
+      if (message.role === 'user' && !message.is_internal) {      
+        this.lastUserMessageTimestamp = message.timestamp;      
+        this.processPendingReactions(message);      
+      }      
+    
+      // Définir shouldScrollToBottom sur true pour défiler vers le bas  
+      this.shouldScrollToBottom = true;    
+    
+      return;  // Sortir de la fonction après avoir traité le message    
+    }      
+    
+    // Gérer d'autres types d'événements si nécessaire    
+    else {    
+      // Traitez les autres types d'événements ici    
+      console.warn(`Unhandled event type: ${wsMessage.event_type}`);    
+    }    
+  }  
   
   processPendingReactions(message: Message): void {  
     this.pendingReactions.forEach((wsMessage) => {  
-      const reactions = wsMessage.reactions || [];  
-      const reactionName = reactions.length > 0 ? reactions[reactions.length -1] : null;  
-
+      const reactionName = wsMessage.reaction_name || '';  
       if (reactionName) {  
+        const emoji = this.getEmojiByName(reactionName) || reactionName;  
         if (wsMessage.update === 'reaction_add') {  
-          const emoji = this.getEmojiByName(reactionName) || reactionName;  
           if (!message.reactions.includes(emoji)) {  
             message.reactions.push(emoji);  
           }  
           console.log('Applied pending reaction:', emoji);  
         } else if (wsMessage.update === 'reaction_remove') {  
-          const emoji = this.getEmojiByName(reactionName) || reactionName;  
           const index = message.reactions.indexOf(emoji);  
           if (index !== -1) {  
             message.reactions.splice(index, 1);  
@@ -400,6 +663,7 @@ export class ChatComponent implements OnInit {
     });  
     this.pendingReactions = [];  
   }  
+  
 
   processMentions(text: string): string {
     // Utilise une expression régulière pour trouver les mentions commençant par @
@@ -408,16 +672,13 @@ export class ChatComponent implements OnInit {
     });
   }
 
-  scrollToBottom(): void {
-    try {
-      const messageList = document.querySelector('.message-list');
-      if (messageList) {
-        messageList.scrollTop = messageList.scrollHeight;
-      }
-    } catch (err) {
-      console.error('Error scrolling to bottom:', err);
-    }
-  }
+  scrollToBottom(): void {  
+    try {  
+      this.messageListContainer.nativeElement.scrollTop = this.messageListContainer.nativeElement.scrollHeight;  
+    } catch (err) {  
+      console.error('Error scrolling to bottom:', err);  
+    }  
+  }  
   
   sendMessage(): void {  
     // Prevent sending if input is empty

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Any, Dict
@@ -9,6 +9,8 @@ import uvicorn
 import aiohttp
 import asyncio
 import logging
+import glob
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -23,6 +25,8 @@ BACKEND_PORT = int(os.getenv("BACKEND_PORT", 8000))
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:4200").split(",")
 TIMEOUT = int(os.getenv("TIMEOUT", 30))
 DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() == "true"
+MAIN_PROMPTS_DIRECTORY = os.environ.get('MAIN_PROMPTS_DIRECTORY', 'prompts/')
+SUBPROMPTS_DIRECTORY = os.environ.get('SUBPROMPTS_DIRECTORY', 'subprompts/')
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG if DEBUG_MODE else logging.INFO)
@@ -72,6 +76,11 @@ def generate_thread_id():
     return thread_id
 
 thread_id = generate_thread_id()
+
+class PromptData(BaseModel):
+    prompt_type: str
+    prompt_name: Optional[str] = None
+    prompt_content: str
 
 class Message(BaseModel):
     channel_id: int
@@ -147,19 +156,38 @@ async def send_message_to_clients(message: Dict):
         await asyncio.gather(*(connection.send_json(message) for connection in connected_clients))
 
 
-async def call_llm_backend(message_payload):
-    global session
-    headers = {"Content-Type": "application/json"}
-    try:
-        async with session.post(LLM_NOTIFICATION_ENDPOINT, headers=headers, json=message_payload) as response:
-            if response.status in [200, 202]:
-                logger.info("Message accepted by LLM backend.")
-            else:
-                logger.error(f"Failed to send message to LLM backend: {response.status}")
-    except asyncio.TimeoutError:
-        logger.error("Timeout while sending message to LLM backend.")
-    except Exception as e:
-        logger.error(f"Error during LLM backend interaction: {str(e)}")
+async def call_llm_backend(message_payload):  
+    global session  
+    headers = {"Content-Type": "application/json"}  
+    try:  
+        async with session.post(LLM_NOTIFICATION_ENDPOINT, headers=headers, json=message_payload) as response:  
+            if response.status in [200, 202]:  
+                logger.info("Message accepted by LLM backend.")  
+            else:  
+                logger.error(f"Failed to send message to LLM backend: {response.status}")  
+                # Send error message to connected clients  
+                error_message = {  
+                    "event_type": "ERROR",  
+                    "error": f"Failed to send message to external API. Status code: {response.status}"  
+                }  
+                await send_message_to_clients(error_message)  
+    except asyncio.TimeoutError:  
+        logger.error("Timeout while sending message to LLM backend.")  
+        # Send error message to connected clients  
+        error_message = {  
+            "event_type": "ERROR",  
+            "error": "Timeout while connecting to the external API."  
+        }  
+        await send_message_to_clients(error_message)  
+    except Exception as e:  
+        logger.error(f"Error during LLM backend interaction: {str(e)}")  
+        # Send error message to connected clients  
+        error_message = {  
+            "event_type": "ERROR",  
+            "error": f"Error during LLM backend interaction: {str(e)}"  
+        }  
+        await send_message_to_clients(error_message)  
+
 
 @app.post("/api/receive_message")
 async def receive_message(request: Request):
@@ -307,6 +335,89 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         if websocket in connected_clients:
             connected_clients.remove(websocket)
+
+def get_safe_prompt_path(directory: str, filename: str) -> Path:
+    # Ensure only the base name is used to prevent directory traversal
+    safe_filename = Path(filename).name
+    return Path(directory) / safe_filename
+
+def ensure_txt_extension(filename: str) -> str:
+    if not filename.endswith('.txt'):
+        filename += '.txt'
+    return filename
+
+# Route to get the prompt content
+@app.get('/api/prompt')
+async def get_prompt(prompt_type: str = Query(...), prompt_name: Optional[str] = None):
+    if prompt_type == 'core':
+        prompt_path = get_safe_prompt_path(MAIN_PROMPTS_DIRECTORY, 'core_prompt.txt')
+    elif prompt_type == 'main':
+        prompt_path = get_safe_prompt_path(MAIN_PROMPTS_DIRECTORY, 'main_prompt.txt')
+    elif prompt_type == 'subprompt' and prompt_name:
+        prompt_name = ensure_txt_extension(prompt_name)
+        prompt_path = get_safe_prompt_path(SUBPROMPTS_DIRECTORY, prompt_name)
+    else:
+        raise HTTPException(status_code=400, detail='Invalid prompt type or missing prompt name')
+    try:
+        with open(prompt_path, 'r', encoding='utf-8') as prompt_file:
+            prompt_content = prompt_file.read()
+        return {'prompt': prompt_content}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail='Prompt not found')
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post('/api/save-prompt')
+async def save_prompt(data: PromptData):
+    if data.prompt_type == 'core':
+        prompt_path = get_safe_prompt_path(MAIN_PROMPTS_DIRECTORY, 'core_prompt.txt')
+    elif data.prompt_type == 'main':
+        prompt_path = get_safe_prompt_path(MAIN_PROMPTS_DIRECTORY, 'main_prompt.txt')
+    elif data.prompt_type == 'subprompt' and data.prompt_name:
+        data.prompt_name = ensure_txt_extension(data.prompt_name)
+        prompt_path = get_safe_prompt_path(SUBPROMPTS_DIRECTORY, data.prompt_name)
+    else:
+        raise HTTPException(status_code=400, detail='Invalid prompt type or missing prompt name')
+    try:
+        with open(prompt_path, 'w', encoding='utf-8') as prompt_file:
+            prompt_file.write(data.prompt_content)
+        return {'status': 'Prompt saved successfully'}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get('/api/subprompts')
+async def list_subprompts():
+    try:
+        prompt_files = glob.glob(str(Path(SUBPROMPTS_DIRECTORY) / '*.txt'))
+        prompt_names = [Path(f).name for f in prompt_files]
+        return {'prompts': prompt_names}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post('/api/create-subprompt')
+async def create_subprompt(prompt_name: str = Query(...)):
+    prompt_name = ensure_txt_extension(prompt_name)
+    prompt_path = get_safe_prompt_path(SUBPROMPTS_DIRECTORY, prompt_name)
+    try:
+        if prompt_path.exists():
+            raise HTTPException(status_code=400, detail='Subprompt already exists')
+        with open(prompt_path, 'w', encoding='utf-8') as prompt_file:
+            prompt_file.write('')
+        return {'status': 'Subprompt created successfully'}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete('/api/delete-subprompt')
+async def delete_subprompt(prompt_name: str = Query(...)):
+    prompt_name = ensure_txt_extension(prompt_name)
+    prompt_path = get_safe_prompt_path(SUBPROMPTS_DIRECTORY, prompt_name)
+    try:
+        if not prompt_path.exists():
+            raise HTTPException(status_code=404, detail='Subprompt not found')
+        prompt_path.unlink()
+        return {'status': 'Subprompt deleted successfully'}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host=BACKEND_HOST, port=BACKEND_PORT, reload=True)
