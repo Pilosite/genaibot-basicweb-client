@@ -1,6 +1,6 @@
 <!-- chat.component.html -->  
 <mat-toolbar color="primary">  
-  <span>Younited GenaiBot Web Chat Interface Sample</span>  
+  <span>GenaiBot Bot Builder</span>  
   <span class="spacer"></span>  
   <!-- Toggle button for internal messages -->  
   <button mat-button (click)="toggleInternalMessages()" [ngClass]="{'active': showInternalMessages}">  
@@ -184,7 +184,7 @@
   <!-- Right Panel for Chat -->  
   <div class="chat-container mat-typography">  
     <!-- Message List -->  
-    <div class="message-list" #messageList>  
+    <div class="message-list" #messageList (scroll)="onScroll()">  
       <div  
         *ngFor="let message of messages"  
         [ngClass]="[  
