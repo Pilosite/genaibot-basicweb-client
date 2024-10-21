@@ -43,19 +43,23 @@ interface WSMessage {
   event_type?: string; // To distinguish message types  
   error?: string; // Add this line for the error property  
   imageUrl?: string;
+  message_type?: string;
+  title?: string;
 }  
 
-interface Message {
-  timestamp: string;
-  thread_id: string;
-  role: string;
-  content: string;
-  is_internal: boolean;
-  reactions: string[];
-  username: string;
-  imageUrl?: string | null;  // Ajout de la propriété imageUrl
-  file?: FileAttachment;     // Peut-être que tu as cette propriété pour les fichiers
-}
+interface Message {  
+  timestamp: string;  
+  thread_id: string;  
+  role: string;  
+  content: string;  
+  is_internal: boolean;  
+  reactions: string[];  
+  username: string;  
+  message_type: string; // Ajout du champ message_type  
+  title?: string;       // Pour les codeblocks, s'il y a un titre  
+  imageUrl?: string | null;  
+  file?: FileAttachment;  
+}  
 
 interface FileAttachment {
   filename: string;
@@ -473,12 +477,18 @@ export class ChatComponent implements OnInit, AfterViewInit {
     file.isExpanded = !file.isExpanded;
   }
 
-  sanitizeFileContent(content: string): string {
-    // Decode common escape sequences (e.g., \n -> new line, \" -> quote)
-    const textArea = document.createElement('textarea');
-    textArea.innerHTML = content;
-    return textArea.value.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\'/g, "'");
-  }
+  sanitizeFileContent(content: string): string {  
+    // Décoder les séquences Unicode  
+    const decodedContent = this.decodeUnicode(content);  
+    
+    // Assainir le contenu si nécessaire (par exemple, pour éviter les XSS)  
+    // Si vous utilisez DomSanitizer, vous pouvez le faire ici  
+    // Par exemple :  
+    // return this.sanitizer.sanitize(SecurityContext.HTML, decodedContent) || '';  
+    
+    // Si vous n'utilisez pas DomSanitizer, retournez simplement le contenu décodé  
+    return decodedContent;  
+  }  
 
   /**
    * Highlight the preview of the file content (first few lines or characters)
@@ -533,18 +543,21 @@ export class ChatComponent implements OnInit, AfterViewInit {
     console.log(`Event Type: ${wsMessage.event_type}`);  
     
     // Gérer les mises à jour des réactions  
-    if (wsMessage.event_type === 'REACTION_UPDATE' && (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove')) {  
+    if (  
+      wsMessage.event_type === 'REACTION_UPDATE' &&  
+      (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove')  
+    ) {  
       console.log('Processing reaction update:', wsMessage);  
-      const reactionName = wsMessage.reaction_name || '';  // Utiliser le nom de la réaction du wsMessage  
+      const reactionName = wsMessage.reaction_name || ''; // Utiliser le nom de la réaction du wsMessage  
     
       // Si la réaction est "done", mettre à jour l'état  
       if (reactionName === 'done' && wsMessage.update === 'reaction_add') {  
-        this.isWaitingForResponse = false;  // Réaction "done" reçue  
-        this.userStoppedWaiting = false;    // Réinitialiser le drapeau  
+        this.isWaitingForResponse = false; // Réaction "done" reçue  
+        this.userStoppedWaiting = false; // Réinitialiser le drapeau  
       }  
     
       // Trouver le message auquel la réaction s'applique  
-      const message = this.messages.find(msg => {  
+      const message = this.messages.find((msg) => {  
         const msgTimestamp = String(msg.timestamp).trim();  
         const wsTimestamp = String(wsMessage.timestamp).trim();  
         const msgThreadId = String(msg.thread_id).trim();  
@@ -570,11 +583,11 @@ export class ChatComponent implements OnInit, AfterViewInit {
         this.pendingReactions.push(wsMessage);  
       }  
       // Ne pas appeler scrollToBottom() ici pour éviter de perturber le défilement de l'utilisateur  
-      return;  // Sortir de la fonction après avoir traité les réactions  
+      return; // Sortir de la fonction après avoir traité les réactions  
     }  
     
-    // Gérer les uploads de fichiers      
-    else if (wsMessage.event_type === 'FILE_UPLOAD' && wsMessage.files_content?.length) {      
+    // Gérer les uploads de fichiers  
+    else if (wsMessage.event_type === 'FILE_UPLOAD' && wsMessage.files_content?.length) {  
       console.log('Processing FILE_UPLOAD message:', wsMessage);  
     
       // Parcourir les fichiers reçus  
@@ -596,7 +609,8 @@ export class ChatComponent implements OnInit, AfterViewInit {
           is_internal: wsMessage.is_internal || false,  
           reactions: [],  
           username: wsMessage.user_name || 'User',  
-          file: file  
+          file: file,  
+          message_type: 'file' // **Ajout de message_type**  
         };  
     
         this.messages.push(message);  
@@ -605,51 +619,61 @@ export class ChatComponent implements OnInit, AfterViewInit {
       // Définir shouldScrollToBottom sur true pour défiler vers le bas  
       this.shouldScrollToBottom = true;  
     
-      return;  // Sortir de la fonction après avoir traité le fichier    
-    }      
+      return; // Sortir de la fonction après avoir traité le fichier  
+    }  
     
-    // Gérer les messages normaux      
-    if (wsMessage.event_type === 'MESSAGE' || wsMessage.event_type === 'MESSAGE_UPDATE') {
-      const role = wsMessage.role?.toLowerCase() || 'assistant';
-      const username = role === 'user' ? 'User' : 'Remote Bot';
-      
-      // Extraire l'URL de l'image si elle est présente dans le contenu
-      const extractedImageUrl = this.extractImageUrl(wsMessage.content || '');
-      
-      const message: Message = {
-        timestamp: String(wsMessage.timestamp!).trim(),
-        thread_id: String(wsMessage.thread_id!).trim(),
-        role,
-        content: this.emojiService.convert(this.parseEmojis(this.processMentions(wsMessage.content || wsMessage.text || ''))), 
-        is_internal: wsMessage.is_internal || false,
-        reactions: [],
-        username,
-        imageUrl: extractedImageUrl || null  // Inclure l'URL de l'image si elle existe
-      };
-  
-      console.log('Added message:', message);
-      this.messages.push(message);
-  
-      if (message.role === 'user' && !message.is_internal) {
-        this.lastUserMessageTimestamp = message.timestamp;
-        this.processPendingReactions(message);
-      }
-  
-      // Scroll to the bottom
-      this.shouldScrollToBottom = true;
-  
-      return;
-    }
+    // Gérer les messages normaux  
+    if (wsMessage.event_type === 'MESSAGE' || wsMessage.event_type === 'MESSAGE_UPDATE') {  
+      const role = wsMessage.role?.toLowerCase() || 'assistant';  
+      const username = role === 'user' ? 'User' : 'Remote Bot';  
     
-    // Gérer d'autres types d'événements si nécessaire    
-    else {    
-      // Traitez les autres types d'événements ici    
-      console.warn(`Unhandled event type: ${wsMessage.event_type}`);    
-    }    
+      // Extraire l'URL de l'image si elle est présente dans le contenu  
+      const extractedImageUrl = this.extractImageUrl(wsMessage.content || '');  
+    
+      const message: Message = {  
+        timestamp: String(wsMessage.timestamp!).trim(),  
+        thread_id: String(wsMessage.thread_id!).trim(),  
+        role: role,  
+        content: this.emojiService.convert(  
+          this.parseEmojis(this.processMentions(wsMessage.content || wsMessage.text || ''))  
+        ),  
+        is_internal: wsMessage.is_internal || false,  
+        reactions: [],  
+        username: wsMessage.user_name || username,  
+        imageUrl: extractedImageUrl || null,  
+        message_type: wsMessage.message_type || 'TEXT', // **Assurez-vous d'inclure message_type**  
+        title: wsMessage.title || '' // **Pour les codeblocks s'il y a un titre**  
+      };  
+    
+      console.log('Added message:', message);  
+      this.messages.push(message);  
+    
+      if (message.role === 'user' && !message.is_internal) {  
+        this.lastUserMessageTimestamp = message.timestamp;  
+        this.processPendingReactions(message);  
+      }  
+    
+      // Définir shouldScrollToBottom sur true pour défiler vers le bas  
+      this.shouldScrollToBottom = true;  
+    
+      return; // Sortir de la fonction après avoir traité le message  
+    }  
+    
+    // Gérer d'autres types d'événements si nécessaire  
+    else {  
+      // Traitez les autres types d'événements ici  
+      console.warn(`Unhandled event type: ${wsMessage.event_type}`);  
+    }  
+  }    
+  
+  decodeUnicode(input: string): string {  
+    return input.replace(/\\u[\dA-Fa-f]{4}/gi, function (match) {  
+      return String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16));  
+    });  
   }  
-  
+
   extractImageUrl(content: string): string | null {
-    const imageUrlPattern = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif))/i;
+    const imageUrlPattern = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif|wbep))/i;
     const match = content.match(imageUrlPattern);
     return match ? match[0] : null;
   }
@@ -788,7 +812,8 @@ export class ChatComponent implements OnInit, AfterViewInit {
       is_internal: false,
       reactions: [],
       username: 'System',
-      thread_id: this.threadId
+      thread_id: this.threadId,
+      message_type: 'COMMENT',
     };
     this.messages.push(systemMessage);
 

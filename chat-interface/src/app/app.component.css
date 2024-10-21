@@ -60,7 +60,7 @@
   .main-container.no-designer .chat-container {  
     grid-column: 1 / -1;  
     width: 100%;  
-    max-width: 800px;  
+    max-width: 1000px;  
     margin: 0 auto;  
   }  
     

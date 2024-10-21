@@ -70,28 +70,32 @@
   padding: 6px;  
 }  
   
-.message.assistant.full-width .message-content {  
+.message.assistant .message-content.full-width {  
   background-color: #ffffff;  
   color: #333333;  
   text-align: left;  
   width: 100% !important;  
-  border: 1px solid #ddd;  
-  padding: 6px 8px;  
+  border: none; /* Supprime la bordure */  
+  padding: 6px 0px;  
   box-sizing: border-box;  
-  border-radius: 0px;  
+  border-radius: 0; /* Angles non arrondis */  
+  margin: 0; /* Supprime les marges externes */  
 }  
   
 .message.file-upload .message-content {  
-  background-color: #ffffff;  
-  text-align: left;  
-  padding: 6px 8px;  
+  background-color: #ffffff; /* Conserve la couleur actuelle */  
+  color: #333333; /* Conserve la couleur actuelle */  
+  font-size: 0.7em;  
+  font-family: "Fira Code", monospace;  
+  padding: 0px 0px; /* Ajustez si nécessaire */  
   box-sizing: border-box;  
+  line-height: 1.5;
   width: 100%;  
-  border: 1px solid #ddd;  
-  border-radius: 0px;  
-  max-width: none !important;  
+  border: none; /* Supprime la bordure si présente */  
+  border-radius: 4px; /* Facultatif */  
+  margin: 0.2; /* Supprime les marges externes */  
 }  
-  
+
 .file-header {  
   display: flex;  
   justify-content: space-between;  
@@ -181,7 +185,7 @@ pre[class*="language-"] {
   color: #ffffff;  
   border-radius: 5px;  
   padding: 14px;  
-  white-space: pre-wrap;  
+  white-space: pre-wrap; /* Permet le wrapping du texte */  
   word-break: break-word;  
   font-family: 'Fira Code', monospace;  
 }  
@@ -238,4 +242,56 @@ code {
   
 .message-list::-webkit-scrollbar-track {  
   background-color: #f5f7fa;  
+}  
+  
+/* Styles pour les messages de type COMMENT */  
+.comment-block {  
+  background-color: #f8f9ba;  
+  color: #2d2d2d;  
+  font-size: 0.60em;  
+  padding: 4px 6px;  
+  border-radius: 4px;
+  font-weight: bold;  
+  border: 1px solid #e1e1e8;  
+  font-family: "Fira Code", monospace;  
+  white-space: pre-wrap;  
+  word-wrap: break-word;  
+  margin: 2px 0;  
+  width: 100%;  
+  box-sizing: border-box;  
+}  
+  
+.comment-message {  
+  width: 100%;  
+}  
+  
+/* Éliminer les flottants pour les messages full-width */  
+.message-content.full-width {  
+  float: none;  
+}  
+  
+/* Styles pour les codeblocks */  
+.codeblock {  
+  background-color: #f7f7f9;  
+  border: 1px solid #e1e1e8;  
+  border-radius: 4px;  
+  margin: 8px 0;  
+}  
+  
+.codeblock-title {  
+  background-color: #e1e1e8;  
+  padding: 8px;  
+  font-weight: bold;  
+  border-bottom: 1px solid #d0d0d5;  
+}  
+  
+.codeblock pre {  
+  margin: 0;  
+  padding: 8px;  
+  overflow-x: auto;  
+}  
+  
+.codeblock code {  
+  font-family: "Fira Code", monospace;  
+  font-size: 0.9em;  
 }  
