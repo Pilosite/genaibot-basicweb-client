@@ -4,7 +4,8 @@ import { CommonModule } from '@angular/common';
 import { MarkdownModule } from 'ngx-markdown';    
 import { HttpClient } from '@angular/common/http';    
 import { WebSocketSubject } from 'rxjs/webSocket';    
-import { environment } from '../../environment/environment';    
+import { environment } from '../../environment/environment';   
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';   
 
 // Import des modules Angular Material    
 import { MatToolbarModule } from '@angular/material/toolbar';    
@@ -41,6 +42,7 @@ interface WSMessage {
   files_content?: { file_content: string, filename: string, title: string }[]; // For file uploads  
   event_type?: string; // To distinguish message types  
   error?: string; // Add this line for the error property  
+  imageUrl?: string;
 }  
 
 interface Message {
@@ -51,7 +53,8 @@ interface Message {
   is_internal: boolean;
   reactions: string[];
   username: string;
-  file?: FileAttachment;  // Optional file property
+  imageUrl?: string | null;  // Ajout de la propriété imageUrl
+  file?: FileAttachment;     // Peut-être que tu as cette propriété pour les fichiers
 }
 
 interface FileAttachment {
@@ -126,7 +129,8 @@ export class ChatComponent implements OnInit, AfterViewInit {
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
     private emojiService: EmojiService,
-    private snackBar: MatSnackBar    
+    private snackBar: MatSnackBar,
+    private sanitizer: DomSanitizer
   ) {
     this.showInternalMessages = true;
   }
@@ -605,35 +609,37 @@ export class ChatComponent implements OnInit, AfterViewInit {
     }      
     
     // Gérer les messages normaux      
-    else if (wsMessage.event_type === 'MESSAGE' || wsMessage.event_type === 'MESSAGE_UPDATE') {      
-      console.log(`==> Processing normal message: ${wsMessage.event_type}`);      
-          
-      const role = wsMessage.role?.toLowerCase() || 'assistant';      
-      const username = role === 'user' ? 'User' : 'Remote Bot'; // Définir des noms personnalisés      
-          
-      const message: Message = {      
-        timestamp: String(wsMessage.timestamp!).trim(),      
-        thread_id: String(wsMessage.thread_id!).trim(),      
-        role,      
-        content: this.emojiService.convert(this.parseEmojis(this.processMentions(wsMessage.content || wsMessage.text || ''))),      
-        is_internal: wsMessage.is_internal || false,      
-        reactions: [],      
-        username      
-      };      
-          
-      console.log('Added message:', message);      
-      this.messages.push(message);      
-          
-      if (message.role === 'user' && !message.is_internal) {      
-        this.lastUserMessageTimestamp = message.timestamp;      
-        this.processPendingReactions(message);      
-      }      
-    
-      // Définir shouldScrollToBottom sur true pour défiler vers le bas  
-      this.shouldScrollToBottom = true;    
-    
-      return;  // Sortir de la fonction après avoir traité le message    
-    }      
+    if (wsMessage.event_type === 'MESSAGE' || wsMessage.event_type === 'MESSAGE_UPDATE') {
+      const role = wsMessage.role?.toLowerCase() || 'assistant';
+      const username = role === 'user' ? 'User' : 'Remote Bot';
+      
+      // Extraire l'URL de l'image si elle est présente dans le contenu
+      const extractedImageUrl = this.extractImageUrl(wsMessage.content || '');
+      
+      const message: Message = {
+        timestamp: String(wsMessage.timestamp!).trim(),
+        thread_id: String(wsMessage.thread_id!).trim(),
+        role,
+        content: this.emojiService.convert(this.parseEmojis(this.processMentions(wsMessage.content || wsMessage.text || ''))), 
+        is_internal: wsMessage.is_internal || false,
+        reactions: [],
+        username,
+        imageUrl: extractedImageUrl || null  // Inclure l'URL de l'image si elle existe
+      };
+  
+      console.log('Added message:', message);
+      this.messages.push(message);
+  
+      if (message.role === 'user' && !message.is_internal) {
+        this.lastUserMessageTimestamp = message.timestamp;
+        this.processPendingReactions(message);
+      }
+  
+      // Scroll to the bottom
+      this.shouldScrollToBottom = true;
+  
+      return;
+    }
     
     // Gérer d'autres types d'événements si nécessaire    
     else {    
@@ -642,6 +648,12 @@ export class ChatComponent implements OnInit, AfterViewInit {
     }    
   }  
   
+  extractImageUrl(content: string): string | null {
+    const imageUrlPattern = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif))/i;
+    const match = content.match(imageUrlPattern);
+    return match ? match[0] : null;
+  }
+
   processPendingReactions(message: Message): void {  
     this.pendingReactions.forEach((wsMessage) => {  
       const reactionName = wsMessage.reaction_name || '';  
@@ -830,6 +842,25 @@ export class ChatComponent implements OnInit, AfterViewInit {
 
   toggleInternalMessages(): void {
     this.showInternalMessages = !this.showInternalMessages;
+  }  
+
+  // Méthode pour vérifier si une URL pointe vers une image  
+  public isImageUrl(url: string): boolean {  
+    return /\.(jpeg|jpg|gif|png|svg|bmp|webp|gif)$/.test(url.toLowerCase());  
+  }  
+    
+  // Méthode pour traiter le contenu du message et détecter les URLs  
+  private processMessageContent(content: string): string {  
+    const urlRegex = /(https?:\/\/[^\s]+)/g;  
+    return content.replace(urlRegex, (url) => {  
+      if (this.isImageUrl(url)) {  
+        // Remplacer l'URL de l'image par une balise d'image en HTML  
+        return `<img src="${url}" alt="Image" />`;  
+      } else {  
+        // Laisser les autres URLs inchangées ou les transformer en liens cliquables  
+        return `<a href="${url}" target="_blank">${url}</a>`;  
+      }  
+    });  
   }  
 }
 

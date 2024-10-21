@@ -514,3 +514,10 @@ code {
   background-color: #f8d7da; /* Light red background */  
   color: #721c24;            /* Dark red text */  
 }  
+
+.message-content img {  
+  max-width: 100%;  
+  height: auto;  
+  border-radius: 5px;  
+  margin-top: 8px;  
+}  

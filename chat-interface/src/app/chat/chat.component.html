@@ -206,63 +206,70 @@
           <span class="timestamp">{{ formatTimestamp(message.timestamp) }}</span>  
         </div>  
   
-        <!-- Message Content -->  
-        <div  
-          class="message-content mat-elevation-z1"  
-          [ngClass]="{  
-            'bubble-right': message.role === 'user' && !message.is_internal && !message.file,  
-            'bubble-left': message.role === 'assistant' && message.is_internal,  
-            'full-width': (message.role === 'assistant' && !message.is_internal) || message.file  
-          }"  
-        >  
-          <!-- Render message content if exists -->  
-          <markdown *ngIf="message.content" [data]="message.content"></markdown>  
-  
-          <!-- Handle file uploads -->  
-          <div *ngIf="message.file" class="file-content">  
-            <!-- If the file is an image, display it -->  
-            <img  
-              *ngIf="isImageFile(message.file.filename)"  
-              [src]="fileToUrl(message.file)"  
-              alt="{{ message.file.title }}"  
-              style="max-width: 200px;"  
-            />  
-  
-            <!-- Otherwise, show the file name with a preview and download link -->  
-            <div *ngIf="!isImageFile(message.file.filename)">  
-              <div class="file-header">  
-                <strong>File: {{ message.file.title }}</strong>  
-                <!-- Expand/collapse button -->  
-                <button  
-                  mat-raised-button  
-                  color="accent"  
-                  *ngIf="shouldShowExpandButton(message.file.content)"  
-                  (click)="toggleFileExpand(message.file)"  
-                >  
-                  {{ message.file.isExpanded ? 'Collapse' : 'Expand' }}  
-                </button>  
-              </div>  
-              <!-- Show a preview of the content with sanitization -->  
-              <pre class="file-preview" *ngIf="!message.file.isExpanded">  
-                {{ sanitizeFileContent(getFilePreview(message.file.content)) }}  
-              </pre>  
-              <!-- Full content with sanitization and custom styling if expanded -->  
-              <pre class="file-full-content dark-theme" *ngIf="message.file.isExpanded">  
-                {{ sanitizeFileContent(message.file.content) }}  
-              </pre>  
-              <!-- Download link -->  
-              <a  
-                mat-button  
-                color="primary"  
-                [href]="fileToUrl(message.file)"  
-                download="{{ message.file.filename }}"  
-              >  
-                Download  
-              </a>  
-            </div>  
-            
-          </div>  
-        </div>  
+       <!-- Message Content -->
+      <div
+      class="message-content mat-elevation-z1"
+      [ngClass]="{
+        'bubble-right': message.role === 'user' && !message.is_internal && !message.file,
+        'bubble-left': message.role === 'assistant' && message.is_internal,
+        'full-width': (message.role === 'assistant' && !message.is_internal) || message.file
+      }"
+      >
+      <!-- Render message content if exists -->
+      <markdown *ngIf="message.content" [data]="message.content"></markdown>
+
+      <!-- If the message contains an image URL, display the image -->
+      <img 
+        *ngIf="message.imageUrl && isImageUrl(message.imageUrl)" 
+        [src]="message.imageUrl" 
+        alt="Image message" 
+        style="max-width: 200px; margin-top: 10px;" 
+      />
+
+      <!-- Handle file uploads -->
+      <div *ngIf="message.file" class="file-content">
+        <!-- If the file is an image, display it -->
+        <img
+          *ngIf="isImageFile(message.file.filename)"
+          [src]="fileToUrl(message.file)"
+          alt="{{ message.file.title }}"
+          style="max-width: 200px;"
+        />
+        <!-- Otherwise, show the file name with a preview and download link -->
+        <div *ngIf="!isImageFile(message.file.filename)">
+          <div class="file-header">
+            <strong>File: {{ message.file.title }}</strong>
+            <!-- Expand/collapse button -->
+            <button
+              mat-raised-button
+              color="accent"
+              *ngIf="shouldShowExpandButton(message.file.content)"
+              (click)="toggleFileExpand(message.file)"
+            >
+              {{ message.file.isExpanded ? 'Collapse' : 'Expand' }}
+            </button>
+          </div>
+          <!-- Show a preview of the content with sanitization -->
+          <pre class="file-preview" *ngIf="!message.file.isExpanded">
+            {{ sanitizeFileContent(getFilePreview(message.file.content)) }}
+          </pre>
+          <!-- Full content with sanitization and custom styling if expanded -->
+          <pre class="file-full-content dark-theme" *ngIf="message.file.isExpanded">
+            {{ sanitizeFileContent(message.file.content) }}
+          </pre>
+          <!-- Download link -->
+          <a
+            mat-button
+            color="primary"
+            [href]="fileToUrl(message.file)"
+            download="{{ message.file.filename }}"
+          >
+            Download
+          </a>
+        </div>
+      </div>
+      </div>
+
       </div>  
     </div>  
   

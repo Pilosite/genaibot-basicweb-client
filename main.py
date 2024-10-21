@@ -418,6 +418,8 @@ async def delete_subprompt(prompt_name: str = Query(...)):
         return {'status': 'Subprompt deleted successfully'}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host=BACKEND_HOST, port=BACKEND_PORT, reload=True)
