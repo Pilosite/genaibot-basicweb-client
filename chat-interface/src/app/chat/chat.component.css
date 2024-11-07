@@ -75,11 +75,9 @@
   color: #333333;  
   text-align: left;  
   width: 100% !important;  
-  border: none; /* Supprime la bordure */  
-  padding: 6px 0px;  
-  box-sizing: border-box;  
-  border-radius: 0; /* Angles non arrondis */  
-  margin: 0; /* Supprime les marges externes */  
+  border: none; 
+  box-sizing: border-box;
+  margin: 0; 
 }  
   
 .message.file-upload .message-content {  
