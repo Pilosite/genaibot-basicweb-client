@@ -142,7 +142,10 @@ compiled/
   
 # Ignore Angular environment files (if any)  
 src/environments/environment*.ts  
-  
+
+# Ignore package-lock.json
+**/package-lock.json
+
 # Optional npm cache directory  
 .npm  
   

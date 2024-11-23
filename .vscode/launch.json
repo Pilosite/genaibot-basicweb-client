@@ -35,5 +35,6 @@
       "name": "Launch Full Stack",
       "configurations": ["Launch Angular App", "Launch FastAPI Backend"]
     }
-  ]
+  ],
+  "default": "Launch Full Stack"
 }
