@@ -14,6 +14,8 @@ BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8000  
 ALLOWED_ORIGINS=http://localhost:4200  
 ```
+Launch this client using vscode debugger, select "Launch Full Stack"
+![image](https://github.com/user-attachments/assets/efce2053-f5a0-41d3-afef-b3f10fdbb960)
 
 ### Configuration of Younited Genaibot Framework
 
