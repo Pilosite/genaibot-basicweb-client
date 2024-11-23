@@ -59,11 +59,6 @@ You need to configure the `config.yaml` file of the Younited Genaibot framework 
 
 ### Running the Younited Genaibot Framework
 
-Before starting the Assistant CLI application, you need to run the Younited Genaibot backend:
-
-```bash
-# Inside the younited-genaibots directory
-python run.py
-```
+Before starting the Assistant CLI application, you need to run the Younited Genaibot backend.
 
 Ensure that the framework is running and listening on the appropriate ports as configured.
