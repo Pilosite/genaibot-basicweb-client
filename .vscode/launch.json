@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Angular App",
+      "preLaunchTask": "npm install (chat-interface)",
+      "program": "${workspaceFolder}/chat-interface/node_modules/@angular/cli/bin/ng",
+      "args": ["serve"],
+      "cwd": "${workspaceFolder}/chat-interface",
+      "runtimeExecutable": "node",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "type": "debugpy",
+      "request": "launch",
+      "name": "Launch FastAPI Backend",
+      "program": "${workspaceFolder}/main.py",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Launch Full Stack",
+      "configurations": ["Launch Angular App", "Launch FastAPI Backend"]
+    }
+  ]
+}

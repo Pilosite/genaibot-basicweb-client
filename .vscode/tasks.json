@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Create and Activate Virtual Environment",
+      "type": "shell",
+      "command": "python -m venv .venv && .venv\\Scripts\\activate && pip install -r requirements.txt",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "windows": {
+        "command": "python -m venv .venv && .venv\\Scripts\\activate && pip install -r requirements.txt"
+      },
+      "linux": {
+        "command": "python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+      },
+      "osx": {
+        "command": "python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+      }
+    },
+    {
+      "label": "npm install (root)",
+      "type": "shell",
+      "command": "npm install",
+      "problemMatcher": [],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "npm install (chat-interface)",
+      "type": "shell",
+      "command": "npm install",
+      "problemMatcher": [],
+      "group": "build",
+      "options": {
+        "cwd": "${workspaceFolder}/chat-interface"
+      }
+    },
+    {
+      "label": "npm install (all)",
+      "type": "shell",
+      "dependsOn": ["npm install (root)", "npm install (chat-interface)"],
+      "problemMatcher": []
+    }
+  ]
+}

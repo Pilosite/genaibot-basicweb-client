@@ -18,7 +18,7 @@ load_dotenv()
 # Read environment variables
 CLIENT_ID = os.getenv("CLIENT_ID", "default_client")
 LLM_NOTIFICATION_ENDPOINT = os.getenv(
-    "LLM_NOTIFICATION_ENDPOINT", "http://localhost:8000/api/receive_message"
+    "LLM_NOTIFICATION_ENDPOINT", ""
 )
 BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", 8000))

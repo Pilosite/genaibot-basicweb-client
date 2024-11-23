@@ -1,15 +1,18 @@
 import { Injectable } from '@angular/core';
-import * as emojione from 'emojione';
+import { emojiMap } from '../utils/emoji-map'; // Ensure this contains all Slack emoji mappings
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class EmojiService {
-
   constructor() {}
 
-  // Méthode pour convertir les codes emojis en vrais emojis
-  convert(text: string): string {
-    return emojione.shortnameToUnicode(text);  // Convertit les shortcodes en emojis
+  /**
+   * Convert Slack emoji names to Unicode.
+   */
+  convertSlackEmoji(text: string): string {
+    return text.replace(/:([a-zA-Z0-9_\-+]+):/g, (match, p1) => {
+      return emojiMap[p1] || match; // Replace with Unicode emoji or keep original
+    });
   }
 }

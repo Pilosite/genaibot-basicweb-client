@@ -16,15 +16,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabChangeEvent } from '@angular/material/tabs';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatSelect, MatSelectModule, MatOption } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import hljs from 'highlight.js';  
 import { EmojiService } from '../services/emoji.service';
-import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
-
-import { Subject } from 'rxjs';  
-import { filter, share } from 'rxjs/operators';  
+import { format, isToday, isYesterday } from 'date-fns';
+import { marked } from 'marked';
 
 // Définition de l'interface WSMessage    
 interface WSMessage {  
@@ -84,8 +81,6 @@ interface FileAttachment {
     MatButtonModule,
     MatFormFieldModule,    
     MatInputModule,
-    MatSelect,
-    MatOption,
     MatProgressSpinnerModule,
     MatSnackBarModule
   ],    
@@ -134,7 +129,7 @@ export class ChatComponent implements OnInit, AfterViewInit {
     private ngZone: NgZone,
     private emojiService: EmojiService,
     private snackBar: MatSnackBar,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
   ) {
     this.showInternalMessages = true;
   }
@@ -551,176 +546,174 @@ export class ChatComponent implements OnInit, AfterViewInit {
     return content.length > previewLimit ? content.substring(0, previewLimit) + '...' : content;
   }
 
-  processMessage(wsMessage: WSMessage): void {    
-    // Vérifier si le traitement des messages est arrêté    
-    if (this.stopProcessingMessages) {    
-      console.log('Message processing is stopped. Ignoring incoming message.');    
-      return;    
-    }    
-      
-    console.log('Processing WebSocket message:', wsMessage);    
-    console.log(`Event Type: ${wsMessage.event_type}`);    
-      
-    // Gérer les erreurs du backend  
-    if (wsMessage.event_type === 'ERROR') {  
-      // Traiter l'erreur (afficher un message, etc.)  
-      console.error('Erreur reçue du backend:', wsMessage.error);  
-    
-      // Réinitialiser les états d'attente  
-      this.isWaitingForResponse = false;  
-      this.userStoppedWaiting = false;  
-    
-      // Mettre à jour l'interface utilisateur si nécessaire  
-      this.updateSendButtonState();  
-    
-      return;  
-    }  
-    
-    // Gérer les mises à jour des réactions    
-    if (    
-      wsMessage.event_type === 'REACTION_UPDATE' &&    
-      (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove')    
-    ) {    
-      console.log('Processing reaction update:', wsMessage);    
-      const reactionName = wsMessage.reaction_name || ''; // Utiliser le nom de la réaction du wsMessage    
-      
-      // Si la réaction est "done", mettre à jour l'état    
-      if (reactionName === 'done' && wsMessage.update === 'reaction_add') {    
-        this.isWaitingForResponse = false; // Réaction "done" reçue    
-        this.userStoppedWaiting = false; // Réinitialiser le drapeau    
-      }    
-      
-      // Trouver le message auquel la réaction s'applique    
-      const message = this.messages.find((msg) => {    
-        const msgTimestamp = String(msg.timestamp).trim();    
-        const wsTimestamp = String(wsMessage.timestamp).trim();    
-        const msgThreadId = String(msg.thread_id).trim();    
-        const wsThreadId = String(wsMessage.thread_id).trim();    
-        // Trouver le message correspondant en utilisant le timestamp et le thread_id    
-        return msgTimestamp === wsTimestamp && msgThreadId === wsThreadId;    
-      });    
-      
-      if (message && reactionName) {    
-        const emoji = this.getEmojiByName(reactionName) || reactionName;    
-        if (wsMessage.update === 'reaction_add') {    
-          if (!message.reactions.includes(emoji)) {    
-            message.reactions.push(emoji);    
-          }    
-        } else if (wsMessage.update === 'reaction_remove') {    
-          const index = message.reactions.indexOf(emoji);    
-          if (index !== -1) {    
-            message.reactions.splice(index, 1);    
-          }    
-        }    
-      } else {    
-        console.warn('Message not found for reaction update.');    
-        this.pendingReactions.push(wsMessage);    
-      }    
-      // Ne pas appeler scrollToBottom() ici pour éviter de perturber le défilement de l'utilisateur    
-      return; // Sortir de la fonction après avoir traité les réactions    
-    }    
-      
-    // Gérer les uploads de fichiers    
-    else if (wsMessage.event_type === 'FILE_UPLOAD' && wsMessage.files_content?.length) {    
-      console.log('Processing FILE_UPLOAD message:', wsMessage);    
-    
-      // Parcourir les fichiers reçus    
-      wsMessage.files_content.forEach((fileContent) => {    
-        const file: FileAttachment = {    
-          filename: fileContent.filename,    
-          title: fileContent.title || fileContent.filename,    
-          content: fileContent.file_content,    
-          isExpanded: false,    
-          blobUrl: ''    
-        };    
-    
-        // Générer la Blob URL à partir du contenu du fichier  
-        this.createBlobUrl(file);  
-    
-        // Créer un message avec le fichier    
-        const message: Message = {    
-          timestamp: String(wsMessage.timestamp!).trim(),    
-          thread_id: String(wsMessage.thread_id!).trim(),    
-          role: wsMessage.role?.toLowerCase() || 'assistant', // ou 'user' selon le cas    
-          content: '', // Pas de contenu textuel, juste le fichier    
-          is_internal: wsMessage.is_internal || false,    
-          reactions: [],    
-          username: wsMessage.user_name || 'User',    
-          file: file,    
-          message_type: 'file' // **Ajout de message_type**    
-        };    
-    
-        this.messages.push(message);    
-      });    
-    
-      // Définir shouldScrollToBottom sur true pour défiler vers le bas    
-      this.shouldScrollToBottom = true;    
-    
-      return; // Sortir de la fonction après avoir traité le fichier    
-    }    
-      
-    // Gérer les messages normaux    
-    if (wsMessage.event_type === 'MESSAGE' || wsMessage.event_type === 'MESSAGE_UPDATE') {    
-      const role = wsMessage.role?.toLowerCase() || 'assistant';    
-      const username = role === 'user' ? 'User' : 'Remote Bot';    
-      
-      let content = wsMessage.content || wsMessage.text || '';    
-      let imageUrl: string | null = null;    
-      let parsedContent: any = null;    
-        
-      if (this.isJsonString(content)) {    
-        try {    
-          parsedContent = JSON.parse(content);    
-          imageUrl = this.extractImageUrlFromJson(parsedContent);    
-          content = this.extractTextFromJson(parsedContent);  
-          console.log('Extracted content from JSON:', content);  
-          console.log('Extracted imageUrl from JSON:', imageUrl);  
-        } catch (e) {    
-          console.error('Erreur lors du parsing du contenu JSON:', e);    
-          parsedContent = null;    
-        }    
-      } else {    
-        imageUrl = this.extractImageUrl(content);    
-      }    
-        
-      const messageType = wsMessage.message_type || 'TEXT';    
-        
-      const message: Message = {    
-        timestamp: String(wsMessage.timestamp!).trim(),    
-        thread_id: String(wsMessage.thread_id!).trim(),    
-        role: role,    
-        content: this.emojiService.convert(    
-          this.parseEmojis(this.processMentions(content))    
-        ),    
-        is_internal: wsMessage.is_internal || false,    
-        reactions: [],    
-        username: wsMessage.user_name || username,    
-        imageUrl: imageUrl,    
-        message_type: messageType,    
-        title: wsMessage.title || ''    
-      };    
-        
-      console.log('Added message:', message);    
-      this.messages.push(message);    
-      
-      if (message.role === 'user' && !message.is_internal) {    
-        this.lastUserMessageTimestamp = message.timestamp;    
-        this.processPendingReactions(message);    
-      }    
-      
-      // Définir shouldScrollToBottom sur true pour défiler vers le bas    
-      this.shouldScrollToBottom = true;    
-      
-      return; // Sortir de la fonction après avoir traité le message    
-    }    
-      
-    // Gérer d'autres types d'événements si nécessaire    
-    else {    
-      // Traitez les autres types d'événements ici    
-      console.warn(`Unhandled event type: ${wsMessage.event_type}`);    
-    }    
-  }    
+  async processMessage(wsMessage: WSMessage): Promise<void> {
+    // Stop processing messages if the flag is set
+    if (this.stopProcessingMessages) {
+      console.log('Message processing is stopped. Ignoring incoming message.');
+      return;
+    }
   
+    console.log('Processing WebSocket message:', wsMessage);
+    console.log(`Event Type: ${wsMessage.event_type}`);
+  
+    // Handle backend errors
+    if (wsMessage.event_type === 'ERROR') {
+      console.error('Error received from backend:', wsMessage.error);
+  
+      // Reset waiting states
+      this.isWaitingForResponse = false;
+      this.userStoppedWaiting = false;
+  
+      // Update the UI
+      this.updateSendButtonState();
+  
+      return;
+    }
+  
+    // Handle reaction updates
+    if (
+      wsMessage.event_type === 'REACTION_UPDATE' &&
+      (wsMessage.update === 'reaction_add' || wsMessage.update === 'reaction_remove')
+    ) {
+      console.log('Processing reaction update:', wsMessage);
+      const reactionName = wsMessage.reaction_name || '';
+  
+      if (reactionName === 'done' && wsMessage.update === 'reaction_add') {
+        this.isWaitingForResponse = false;
+        this.userStoppedWaiting = false;
+      }
+  
+      const message = this.messages.find((msg) => {
+        const msgTimestamp = String(msg.timestamp).trim();
+        const wsTimestamp = String(wsMessage.timestamp).trim();
+        const msgThreadId = String(msg.thread_id).trim();
+        const wsThreadId = String(wsMessage.thread_id).trim();
+        return msgTimestamp === wsTimestamp && msgThreadId === wsThreadId;
+      });
+  
+      if (message && reactionName) {
+        const emoji = this.getEmojiByName(reactionName) || reactionName;
+        if (wsMessage.update === 'reaction_add') {
+          if (!message.reactions.includes(emoji)) {
+            message.reactions.push(emoji);
+          }
+        } else if (wsMessage.update === 'reaction_remove') {
+          const index = message.reactions.indexOf(emoji);
+          if (index !== -1) {
+            message.reactions.splice(index, 1);
+          }
+        }
+      } else {
+        console.warn('Message not found for reaction update.');
+        this.pendingReactions.push(wsMessage);
+      }
+  
+      return; // Exit after handling reactions
+    }
+  
+    // Handle file uploads
+    if (wsMessage.event_type === 'FILE_UPLOAD' && wsMessage.files_content?.length) {
+      console.log('Processing FILE_UPLOAD message:', wsMessage);
+  
+      wsMessage.files_content.forEach((fileContent) => {
+        const file: FileAttachment = {
+          filename: fileContent.filename,
+          title: fileContent.title || fileContent.filename,
+          content: fileContent.file_content,
+          isExpanded: false,
+          blobUrl: '',
+        };
+  
+        this.createBlobUrl(file);
+  
+        const message: Message = {
+          timestamp: String(wsMessage.timestamp!).trim(),
+          thread_id: String(wsMessage.thread_id!).trim(),
+          role: wsMessage.role?.toLowerCase() || 'assistant',
+          content: '', // No text content for file messages
+          is_internal: wsMessage.is_internal || false,
+          reactions: [],
+          username: wsMessage.user_name || 'User',
+          file: file,
+          message_type: 'file',
+        };
+  
+        this.messages.push(message);
+      });
+  
+      this.shouldScrollToBottom = true;
+  
+      return; // Exit after handling file uploads
+    }
+  
+    // Handle normal messages
+    if (wsMessage.event_type === 'MESSAGE' || wsMessage.event_type === 'MESSAGE_UPDATE') {
+      const role = wsMessage.role?.toLowerCase() || 'assistant';
+      const username = role === 'user' ? 'User' : 'Remote Bot';
+  
+      let content = wsMessage.content || wsMessage.text || '';
+      let imageUrl: string | null = null;
+      let parsedContent: any = null;
+  
+      if (this.isJsonString(content)) {
+        try {
+          parsedContent = JSON.parse(content);
+          imageUrl = this.extractImageUrlFromJson(parsedContent);
+          content = this.extractTextFromJson(parsedContent);
+        } catch (e) {
+          console.error('Error parsing JSON content:', e);
+        }
+      } else {
+        imageUrl = this.extractImageUrl(content);
+      }
+  
+      const messageType = wsMessage.message_type || 'TEXT';
+  
+      // Render the markdown content asynchronously
+      const renderedMarkdown = await this.renderMarkdown(
+        this.processEmojiContent(this.processMentions(content))
+      );
+  
+      const message: Message = {
+        timestamp: String(wsMessage.timestamp!).trim(),
+        thread_id: String(wsMessage.thread_id!).trim(),
+        role: role,
+        content: renderedMarkdown, // Store rendered markdown
+        is_internal: wsMessage.is_internal || false,
+        reactions: [],
+        username: wsMessage.user_name || username,
+        imageUrl: imageUrl,
+        message_type: messageType,
+        title: wsMessage.title || '',
+      };
+  
+      console.log('Added message:', message);
+      this.messages.push(message);
+  
+      if (message.role === 'user' && !message.is_internal) {
+        this.lastUserMessageTimestamp = message.timestamp;
+        this.processPendingReactions(message);
+      }
+  
+      this.shouldScrollToBottom = true;
+  
+      return; // Exit after handling messages
+    }
+  
+    console.warn(`Unhandled event type: ${wsMessage.event_type}`);
+  }
+  
+  // Helper method to render Markdown
+  private async renderMarkdown(content: string): Promise<string> {
+    try {
+      // Use marked to render markdown content
+      return await marked(content);
+    } catch (error) {
+      console.error('Error rendering markdown:', error);
+      return content; // Return original content if rendering fails
+    }
+  }
+
   public deserializeContent(content: string): string {  
     try {  
       let previousContent = '';  
@@ -1024,13 +1017,16 @@ export class ChatComponent implements OnInit, AfterViewInit {
       stopButton.style.display = this.isWaitingForResponse ? 'inline-block' : 'none';  // Show stop if waiting
     }
   }
-
-  parseEmojis(text: string): string {    
-    return text.replace(/:([a-zA-Z0-9_+\-]+):/g, (match, p1) => {    
-      const emoji = this.getEmojiByName(p1);    
-      return emoji ? emoji : match;    
-    });    
-  }    
+  
+  processEmojiContent(content: string): string {
+    if (!content) return ''; // Handle empty content gracefully
+  
+    // Replace newlines with <br> to preserve line breaks
+    const withLineBreaks = content.replace(/\n/g, '<br>');
+  
+    // Convert Slack emoji codes to Unicode using EmojiService
+    return this.emojiService.convertSlackEmoji(withLineBreaks);
+  }
 
   getEmojiByName(name: string): string | null {      
     const emojiMap: { [key: string]: string } = {      
