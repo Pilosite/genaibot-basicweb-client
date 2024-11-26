@@ -1,6 +1,8 @@
 # genaibot-basicweb-client
 basic web client for younited genaibot framework
 
+install node.js : https://nodejs.org/en/download/prebuilt-installer
+
 Create a .env with the following information, only change the LLM_NOTIFICATION_ENDPOINT to your younited genaibot framework actual endpoint.
 ```yaml
 CLIENT_ID="BotTester"
@@ -9,10 +11,13 @@ LLM_NOTIFICATION_ENDPOINT="http://localhost:7071/api/get_generic_rest_notificati
 TIMEOUT=30  
 MAX_ITERATIONS=10  
 DEBUG_MODE=False  
-  
+MAIN_PROMPTS_DIRECTORY='C:\\genaibots-workspace\\younited-genaibots\\prompts'
+SUBPROMPTS_DIRECTORY='C:\\genaibots-workspace\\younited-genaibots\\subprompts'
+SESSIONS_DIRECTORY="C:\\genaibots-workspace\\younited-genaibots\\internal_data\\sessions"
+
 BACKEND_HOST=0.0.0.0  
 BACKEND_PORT=8000  
-ALLOWED_ORIGINS=http://localhost:4200  
+ALLOWED_ORIGINS=http://localhost:4200 
 ```
 Launch this client using vscode debugger, select "Launch Full Stack"
 ![image](https://github.com/user-attachments/assets/efce2053-f5a0-41d3-afef-b3f10fdbb960)
