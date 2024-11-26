@@ -4,3 +4,4 @@ aiohttp
 python-multipart  
 python-dotenv
 gunicorn
+uvicorn[standard]
